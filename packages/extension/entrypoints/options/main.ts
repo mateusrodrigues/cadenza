@@ -8,6 +8,7 @@ import {
 } from '@cadenza/providers';
 import { CATEGORIES, CATEGORY_IDS, type Dialect } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
+import { type IgnoreRule, loadIgnored, ruleKey, saveIgnored } from '../../lib/ignored';
 import type {
   AllowOriginResponse,
   ListModelsResponse,
@@ -45,6 +46,8 @@ const el = {
   fix: $<HTMLButtonElement>('fix'),
   dialect: $<HTMLSelectElement>('dialect'),
   categories: $<HTMLFieldSetElement>('categories'),
+  ignoredList: $<HTMLUListElement>('ignored-list'),
+  ignoredEmpty: $<HTMLParagraphElement>('ignored-empty'),
 };
 
 const DIALECTS: [Dialect, string][] = [
@@ -386,6 +389,35 @@ function renderWriting() {
   el.categories.append(...boxes);
 }
 
+async function renderIgnored() {
+  const rules = (await loadIgnored()).reverse();
+  el.ignoredEmpty.hidden = rules.length > 0;
+  el.ignoredList.replaceChildren(
+    ...rules.map((rule) => {
+      const li = document.createElement('li');
+      const text = document.createElement('div');
+      text.className = 'provider-text';
+      text.append(
+        Object.assign(document.createElement('span'), { textContent: rule.original }),
+        Object.assign(document.createElement('span'), {
+          className: 'muted',
+          textContent: CATEGORIES[rule.category].label,
+        }),
+      );
+      const remove = button('Remove', () => void unignore(rule));
+      remove.setAttribute('aria-label', `Stop ignoring ${rule.original}`);
+      li.append(text, remove);
+      return li;
+    }),
+  );
+}
+
+async function unignore(rule: IgnoreRule) {
+  const key = ruleKey(rule);
+  await saveIgnored((await loadIgnored()).filter((r) => ruleKey(r) !== key));
+  await renderIgnored();
+}
+
 // ---- Wiring ------------------------------------------------------------------------------
 
 async function init() {
@@ -393,6 +425,10 @@ async function init() {
   presetOptions();
   renderList();
   renderWriting();
+  await renderIgnored();
+  browser.storage.local.onChanged.addListener((changes) => {
+    if (changes.ignored) void renderIgnored();
+  });
 
   el.add.addEventListener('click', () => {
     const preset = getPreset('openai') ?? PRESETS[0];

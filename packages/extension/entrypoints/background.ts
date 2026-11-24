@@ -17,6 +17,7 @@ import {
 } from '@cadenza/providers';
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
+import { addIgnored, loadIgnored, withoutIgnored } from '../lib/ignored';
 import type {
   AllowOriginResponse,
   CheckMessage,
@@ -66,6 +67,8 @@ export default defineBackground(() => {
       case 'cadenza/forget':
         scheduler.forget(`${sender.tab?.id ?? -1}:${sender.frameId ?? 0}:${msg.fieldId}`);
         return false;
+      case 'cadenza/ignore':
+        return reply(addIgnored(msg.rule).then((ok) => ({ ok })));
     }
     // Everything below handles keys or settings: extension pages only, never content scripts.
     if (!fromExtensionPage) return false;
@@ -122,7 +125,8 @@ async function handleCheck(msg: CheckMessage, frameKey: string): Promise<CheckRe
     if (result.outcome) tierCache.set(tierKey, result.outcome.tier);
     return {
       ok: true,
-      suggestions: result.suggestions,
+      // Filtered here rather than cached, so removing a rule brings its suggestions back.
+      suggestions: withoutIgnored(result.suggestions, await loadIgnored()),
       pending: result.pending,
       slow: provider.slowMode,
     };

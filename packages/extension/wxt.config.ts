@@ -11,6 +11,8 @@ export const E2E_STUB_ORIGIN = 'http://127.0.0.1:4600';
 export default defineConfig({
   imports: false,
   outDir: E2E ? '.output-e2e' : '.output',
+  // Test builds open the card and panel shadow roots so tests can click their buttons.
+  vite: () => ({ define: { __CADENZA_E2E__: JSON.stringify(E2E) } }),
   manifest: {
     name: 'Cadenza',
     description: 'Writing suggestions in any text field, using the AI provider you choose.',

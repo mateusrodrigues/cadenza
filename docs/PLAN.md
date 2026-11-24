@@ -181,8 +181,8 @@ items are dropped, never shown.
 
 | Field type                                              | Text access                | Underlines                                                                                 | Apply a suggestion                                                                                 |
 | ------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `<textarea>`, `<input type=text                         | search                     | email…>`                                                                                   | `.value`                                                                                           | Mirror div (copied font/padding/scroll) in a shadow-DOM overlay; rects from mirror ranges | `setRangeText()` + dispatch `input` |
-| `contenteditable` (Gmail, GitHub, LinkedIn, Slack web…) | DOM walk → text + node map | **CSS Custom Highlight API** (`CSS.highlights`, `::highlight(cadenza-*)`), no DOM mutation | Select range, `execCommand('insertText')` (keeps undo and framework state); `beforeinput` fallback |
+| `<textarea>`, `<input type=text                         | search                     | email…>`                                                                                   | `.value`                                                                                           | Mirror div (copied font/padding/scroll) in a shadow-DOM overlay; rects from mirror ranges | Select range, `execCommand('insertText')` (native undo, real `input` events); `setRangeText()` + `input` fallback |
+| `contenteditable` (Gmail, GitHub, LinkedIn, Slack web…) | DOM walk → text + node map | **CSS Custom Highlight API** (`CSS.highlights`, `::highlight(cadenza-*)`), no DOM mutation | Select range, offer a `beforeinput` (editors that own their model take it), else `execCommand('insertText')`; text verified after |
 
 The editor's own DOM is never modified: React/ProseMirror/Lexical editors break if we inject
 spans. Because highlights aren't elements, clicks/hover are hit-tested by comparing the pointer
@@ -321,7 +321,22 @@ text map.
 - Paragraph diffing, debounce, offset mapping during edits, scroll/resize tracking.
 - **Exit:** underlines stay aligned while typing, scrolling and resizing on the test pages. Met.
 
-### Phase 5 — Cards and applying changes (week 5)
+### Phase 5 — Cards and applying changes (week 5) — ✅ done
+
+Done: clicking an underline opens a card (category, before → after, explanation, Accept /
+Dismiss / "Don't suggest this again"); the badge opens a panel grouped by category with
+"Accept all" for correctness (one undo step in plain fields). Accepting goes through the
+editor's own input path, so Ctrl+Z and framework state work; buttons act on trusted clicks
+only. Dismissals follow edits; "Don't suggest this again" matches the flagged text and
+category, is filtered in the worker, and is listed (removable) in settings. Fields focused
+before the content script loads are now picked up, and editors that re-render without `input`
+events are followed through a MutationObserver. Tests: `e2e/cards.spec.ts` (including a
+React-style controlled textarea and a model-owning editor with its own undo) and
+`e2e/sites.spec.ts` (ProseMirror, Lexical and Slate demo pages, `CADENZA_NET_TESTS=1`).
+Not covered: signed-in sites (Gmail, GitHub, LinkedIn, Slack) need a manual pass; editors in
+`about:blank`/`srcdoc` iframes (TinyMCE, CKEditor 4) aren't reached yet; the card opens on
+click, not hover; keyboard access to cards is Phase 7.
+
 
 - Card, Accept/Dismiss, "don't suggest again", undo works via Ctrl+Z.
 - Field badge and panel.

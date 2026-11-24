@@ -12,14 +12,17 @@ const SIZE = 18;
 /**
  * Small status mark in the bottom-right corner of a field: a pulsing ring while checking,
  * a count colored by the most important category when there are suggestions, "!" on errors.
- * Lives in a closed shadow root and never takes focus. Full card/panel UI arrives in Phase 5.
+ * A click opens the field's panel. Lives in a closed shadow root and never takes focus.
  */
 export class FieldBadge {
   private readonly host: HTMLElement;
   private readonly dot: HTMLDivElement;
   private readonly untrack: () => void;
 
-  constructor(private readonly field: HTMLElement) {
+  constructor(
+    private readonly field: HTMLElement,
+    onClick: () => void,
+  ) {
     this.host = document.createElement('cadenza-badge');
     this.host.style.cssText =
       'all: initial; position: absolute; z-index: 2147483646; pointer-events: none;';
@@ -27,7 +30,7 @@ export class FieldBadge {
     const style = document.createElement('style');
     style.textContent = `
       .dot { box-sizing: border-box; width: ${SIZE}px; height: ${SIZE}px; border-radius: 50%;
-        display: none; align-items: center; justify-content: center; color: #fff;
+        display: none; align-items: center; justify-content: center; color: #fff; cursor: pointer;
         font: 600 11px/1 system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
       .dot[data-kind="checking"] { display: flex; background: transparent; box-shadow: none;
         border: 2px solid #8b8fa3; border-top-color: transparent;
@@ -41,6 +44,11 @@ export class FieldBadge {
     this.dot = document.createElement('div');
     this.dot.className = 'dot';
     root.append(style, this.dot);
+    // Keep focus in the field; act on real clicks only.
+    this.host.addEventListener('mousedown', (e) => e.preventDefault());
+    this.host.addEventListener('click', (e) => {
+      if (e.isTrusted && this.host.style.pointerEvents === 'auto') onClick();
+    });
     document.documentElement.append(this.host);
     this.untrack = trackPosition(field, () => this.position());
     this.set({ kind: 'idle' });
@@ -52,8 +60,10 @@ export class FieldBadge {
 
   set(state: BadgeState): void {
     this.host.dataset.state = state.kind;
-    // Hoverable only when there is an error to explain; otherwise never intercept clicks.
-    this.host.style.pointerEvents = state.kind === 'error' ? 'auto' : 'none';
+    // Clickable only when there's something to show; otherwise never intercept clicks.
+    const active =
+      state.kind === 'error' || (state.kind === 'done' && state.suggestions.length > 0);
+    this.host.style.pointerEvents = active ? 'auto' : 'none';
     this.dot.dataset.kind = state.kind;
     this.dot.textContent = '';
     this.host.title = '';
@@ -65,6 +75,7 @@ export class FieldBadge {
       } else {
         this.dot.textContent = n > 99 ? '99+' : String(n);
         this.dot.style.background = CATEGORIES[topCategory(state.suggestions)].color;
+        this.host.title = `Cadenza: ${n} ${n === 1 ? 'suggestion' : 'suggestions'}`;
       }
     } else if (state.kind === 'error') {
       this.dot.textContent = '!';
@@ -72,6 +83,11 @@ export class FieldBadge {
       this.dot.style.background = '';
     }
     this.position();
+  }
+
+  /** Where the badge is on screen (the panel opens next to it). */
+  rect(): DOMRect {
+    return this.dot.getBoundingClientRect();
   }
 
   position(): void {

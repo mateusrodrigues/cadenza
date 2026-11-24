@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cadenza autofocus test page</title>
+  </head>
+  <body>
+    <textarea id="auto" rows="4" cols="60"></textarea>
+    <!-- Focused while the page parses, before content scripts run (like autofocus). -->
+    <script>
+      document.getElementById('auto').focus();
+    </script>
+  </body>
+</html>

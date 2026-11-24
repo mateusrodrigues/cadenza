@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cadenza apply test page</title>
+    <style>
+      body { font: 16px/1.5 Georgia, serif; max-width: 640px; margin: 24px auto; }
+      textarea, input, [contenteditable] { display: block; width: 100%; box-sizing: border-box;
+        padding: 8px; border: 1px solid #999; margin: 6px 0 20px; font: inherit; }
+      textarea { height: 70px; }
+      [contenteditable] { min-height: 50px; }
+      [contenteditable] p { margin: 0; }
+      #model-editor { white-space: pre-wrap; }
+      output { display: block; font: 13px monospace; color: #555; min-height: 1em; }
+    </style>
+  </head>
+  <body>
+    <textarea id="plain"></textarea>
+    <input id="input" type="text" />
+
+    <!-- A controlled field like React's: state changes only through its own input handler,
+         which ignores events where the value didn't change since it last set it. -->
+    <textarea id="controlled"></textarea>
+    <output id="controlled-preview"></output>
+
+    <div id="editor" contenteditable="true"><p>Start.</p></div>
+
+    <!-- An editor that owns its document model (like ProseMirror or Lexical): it cancels the
+         browser's editing, applies each beforeinput to its model, re-renders, and keeps its
+         own undo history. -->
+    <div id="model-editor" contenteditable="true"></div>
+    <output id="model-preview"></output>
+
+    <script>
+      // ---- Controlled textarea -------------------------------------------------------------
+      {
+        const el = document.getElementById('controlled');
+        const preview = document.getElementById('controlled-preview');
+        const proto = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+        let tracked = '';
+        Object.defineProperty(el, 'value', {
+          configurable: true,
+          get() { return proto.get.call(this); },
+          set(v) { tracked = String(v); proto.set.call(this, v); },
+        });
+        let state = '';
+        window.controlledChanges = 0;
+        el.addEventListener('input', () => {
+          if (el.value === tracked) return; // React's value tracker: no change, no onChange
+          window.controlledChanges++;
+          state = el.value;
+          tracked = state;
+          preview.textContent = state;
+          el.value = state; // re-render
+        });
+      }
+
+      // ---- Model editor --------------------------------------------------------------------
+      {
+        const el = document.getElementById('model-editor');
+        const preview = document.getElementById('model-preview');
+        let model = 'Start.';
+        const undo = [];
+        const render = (caret) => {
+          const p = document.createElement('p');
+          p.textContent = model;
+          el.replaceChildren(p);
+          preview.textContent = model;
+          if (caret !== undefined && document.activeElement === el) {
+            const text = p.firstChild ?? p;
+            const r = document.createRange();
+            r.setStart(text, Math.min(caret, model.length));
+            r.collapse(true);
+            const sel = getSelection();
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        };
+        const offsets = (range) => {
+          const p = el.firstChild;
+          const text = p?.firstChild;
+          const at = (node, offset) => (node === text ? offset : node === p && offset > 0 ? model.length : 0);
+          return [at(range.startContainer, range.startOffset), at(range.endContainer, range.endOffset)];
+        };
+        // Like ProseMirror's keymap: undo is a key binding over the editor's own history.
+        el.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            const prev = undo.pop();
+            if (prev !== undefined) { model = prev; render(model.length); }
+          }
+        });
+        el.addEventListener('beforeinput', (e) => {
+          e.preventDefault();
+          const range = e.getTargetRanges()[0] ?? getSelection().getRangeAt(0);
+          let [start, end] = offsets(range);
+          if (e.inputType === 'deleteContentBackward' && start === end) start = Math.max(0, start - 1);
+          const data = e.inputType.startsWith('insert') ? (e.data ?? e.dataTransfer?.getData('text/plain') ?? '') : '';
+          undo.push(model);
+          model = model.slice(0, start) + data + model.slice(end);
+          render(start + data.length);
+        });
+        render();
+      }
+    </script>
+  </body>
+</html>

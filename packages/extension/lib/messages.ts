@@ -1,5 +1,6 @@
 import type { ModelInfo, ProviderConfig } from '@cadenza/providers';
 import type { Paragraph, Suggestion } from '@cadenza/shared';
+import type { IgnoreRule } from './ignored';
 
 export interface WorkerError {
   kind: string;
@@ -32,6 +33,12 @@ export type CheckResponse =
 export interface ForgetMessage {
   type: 'cadenza/forget';
   fieldId: string;
+}
+
+/** "Don't suggest this again", sent after the user clicks it on a card. */
+export interface IgnoreMessage {
+  type: 'cadenza/ignore';
+  rule: IgnoreRule;
 }
 
 // ---- From extension pages only (popup, options) -------------------------------------------
@@ -80,5 +87,5 @@ export interface AllowOriginMessage {
 
 export type AllowOriginResponse = { ok: true } | { ok: false; error: WorkerError };
 
-export type ContentMessage = CheckMessage | ForgetMessage;
+export type ContentMessage = CheckMessage | ForgetMessage | IgnoreMessage;
 export type PageMessage = StatusMessage | ListModelsMessage | TestMessage | AllowOriginMessage;

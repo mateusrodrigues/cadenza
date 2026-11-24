@@ -9,12 +9,13 @@ export default defineContentScript({
   main(ctx) {
     const sessions = new Map<FieldElement, FieldSession>();
 
-    const onFocusIn = (event: Event) => {
-      // composedPath() reaches fields inside open shadow roots.
-      const field = resolveField(event.composedPath()[0] ?? event.target);
+    const watch = (target: EventTarget | null) => {
+      const field = resolveField(target);
       if (!field || sessions.has(field)) return;
       sessions.set(field, new FieldSession(field));
     };
+    // composedPath() reaches fields inside open shadow roots.
+    const onFocusIn = (event: Event) => watch(event.composedPath()[0] ?? event.target);
 
     // Drop sessions whose field left the page.
     const sweep = setInterval(() => {
@@ -27,6 +28,9 @@ export default defineContentScript({
     }, 5000);
 
     document.addEventListener('focusin', onFocusIn, true);
+    // A field focused before this script loaded (autofocus, or a quick click) sent its
+    // focusin already.
+    watch(deepActiveElement());
     ctx.onInvalidated(() => {
       clearInterval(sweep);
       document.removeEventListener('focusin', onFocusIn, true);
@@ -35,3 +39,9 @@ export default defineContentScript({
     });
   },
 });
+
+function deepActiveElement(): Element | null {
+  let el = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el;
+}

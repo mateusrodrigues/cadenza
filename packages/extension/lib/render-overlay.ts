@@ -1,4 +1,5 @@
 import { CATEGORIES, type Suggestion } from '@cadenza/shared';
+import { hits, visibleArea, visibleBox, visibleRects } from './geometry';
 import type { Renderer } from './renderer';
 import { trackPosition } from './track';
 
@@ -48,13 +49,15 @@ export class OverlayRenderer implements Renderer {
   private readonly host: HTMLElement;
   private readonly mirror: HTMLDivElement;
   private readonly untrack: () => void;
+  private spans = new Map<string, { span: HTMLSpanElement; suggestion: Suggestion }>();
 
   constructor(private readonly field: HTMLTextAreaElement | HTMLInputElement) {
     this.host = document.createElement('cadenza-overlay');
     this.host.dataset.cadenzaOverlay = '';
     this.host.style.cssText =
       'all: initial; position: fixed; top: 0; left: 0; pointer-events: none; z-index: 2147483646;';
-    const root = this.host.attachShadow({ mode: 'closed' });
+    // Test builds open it so tests can find the underlines (see wxt.config.ts).
+    const root = this.host.attachShadow({ mode: __CADENZA_E2E__ ? 'open' : 'closed' });
     const style = document.createElement('style');
     style.textContent = `
       .mirror { position: fixed; overflow: hidden; color: transparent; border-style: solid;
@@ -78,6 +81,7 @@ export class OverlayRenderer implements Renderer {
     this.host.dataset.count = String(suggestions.length);
     const text = this.field.value;
     const frag = document.createDocumentFragment();
+    this.spans.clear();
     let pos = 0;
     for (const s of suggestions) {
       if (s.start < pos || text.slice(s.start, s.end) !== s.original) continue;
@@ -86,6 +90,7 @@ export class OverlayRenderer implements Renderer {
       span.className = `u-${s.category}`;
       span.textContent = text.slice(s.start, s.end);
       frag.append(span);
+      this.spans.set(s.id, { span, suggestion: s });
       pos = s.end;
     }
     // A trailing newline would otherwise collapse and shift the last line.
@@ -130,50 +135,25 @@ export class OverlayRenderer implements Renderer {
     this.mirror.scrollLeft = f.scrollLeft;
   }
 
+  hitTest(x: number, y: number): Suggestion | null {
+    if (this.spans.size === 0) return null;
+    this.position();
+    const area = visibleBox(this.field);
+    for (const { span, suggestion } of this.spans.values()) {
+      if (visibleRects(span.getClientRects(), area).some((r) => hits(r, x, y))) return suggestion;
+    }
+    return null;
+  }
+
+  rectsOf(id: string): DOMRect[] {
+    const entry = this.spans.get(id);
+    if (!entry) return [];
+    this.position();
+    return visibleRects(entry.span.getClientRects(), visibleBox(this.field));
+  }
+
   destroy(): void {
     this.untrack();
     this.host.remove();
   }
-}
-
-/**
- * The part of the viewport where `el` can be seen: the viewport intersected with every
- * ancestor that clips its overflow. Null when nothing of it is visible.
- */
-function visibleArea(
-  el: Element,
-): { top: number; right: number; bottom: number; left: number } | null {
-  if (getComputedStyle(el).visibility === 'hidden') return null;
-  let top = 0;
-  let left = 0;
-  let right = window.innerWidth;
-  let bottom = window.innerHeight;
-  let node: Element | null = parentOf(el);
-  while (node && node !== document.documentElement && node !== document.body) {
-    const cs = getComputedStyle(node);
-    if (cs.display === 'none') return null;
-    if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
-      const r = node.getBoundingClientRect();
-      const t = r.top + node.clientTop;
-      const l = r.left + node.clientLeft;
-      if (cs.overflowY !== 'visible') {
-        top = Math.max(top, t);
-        bottom = Math.min(bottom, t + node.clientHeight);
-      }
-      if (cs.overflowX !== 'visible') {
-        left = Math.max(left, l);
-        right = Math.min(right, l + node.clientWidth);
-      }
-    }
-    if (cs.position === 'fixed') break;
-    node = parentOf(node);
-  }
-  return top < bottom && left < right ? { top, right, bottom, left } : null;
-}
-
-/** The parent element, crossing out of shadow roots. */
-function parentOf(el: Element): Element | null {
-  if (el.parentElement) return el.parentElement;
-  const root = el.getRootNode();
-  return root instanceof ShadowRoot ? root.host : null;
 }

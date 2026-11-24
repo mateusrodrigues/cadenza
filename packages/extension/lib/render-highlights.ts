@@ -1,4 +1,5 @@
 import { CATEGORIES, CATEGORY_IDS, type Category, type Suggestion } from '@cadenza/shared';
+import { hits, visibleBox, visibleRects } from './geometry';
 import type { Renderer } from './renderer';
 import { buildTextMap, rangeFor, type TextMap } from './text-map';
 
@@ -34,9 +35,19 @@ export class HighlightRenderer implements Renderer {
     this.onCount(this.ranges.size);
   }
 
-  /** Suggestions currently drawn, with their live ranges (used for hit-testing in Phase 5). */
-  entries(): [Range, Suggestion][] {
-    return [...this.ranges];
+  hitTest(x: number, y: number): Suggestion | null {
+    const area = visibleBox(this.root);
+    for (const [range, s] of this.ranges) {
+      if (visibleRects(range.getClientRects(), area).some((r) => hits(r, x, y))) return s;
+    }
+    return null;
+  }
+
+  rectsOf(id: string): DOMRect[] {
+    for (const [range, s] of this.ranges) {
+      if (s.id === id) return visibleRects(range.getClientRects(), visibleBox(this.root));
+    }
+    return [];
   }
 
   private clear(): void {

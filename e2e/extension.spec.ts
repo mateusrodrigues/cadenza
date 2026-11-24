@@ -75,3 +75,12 @@ test('popup shows the active provider', async ({ context, extensionId }) => {
   await expect(page.locator('#provider')).toHaveText('Test rules (no AI)');
   await expect(page.locator('#enabled')).toBeChecked();
 });
+
+test('checks a field that had focus before Cadenza loaded', async ({ context }) => {
+  const page = await context.newPage();
+  await page.goto(`${PAGE_URL}autofocus.html`);
+  await expect(page.locator('#auto')).toBeFocused();
+  // No click: the focus event happened before the content script ran.
+  await page.keyboard.type('Read teh book.');
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
+});
