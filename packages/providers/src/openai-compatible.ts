@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { classifyHttpError, ProviderError } from './errors.js';
+import { isLocalURL } from './presets.js';
 import type {
   CompletionRequest,
   CompletionResult,
@@ -15,8 +16,14 @@ import type {
 export class OpenAICompatibleProvider implements Provider {
   readonly kind = 'openai-compatible' as const;
   private readonly client: OpenAI;
+  /**
+   * Local servers default to sampling (llama.cpp: temperature 0.8), which makes checks vary
+   * between runs. Hosted reasoning models reject a temperature, so only local ones get 0.
+   */
+  private readonly temperature: { temperature: number } | Record<string, never>;
 
   constructor(config: ProviderConfig, fetchImpl?: typeof fetch) {
+    this.temperature = isLocalURL(config.baseURL) ? { temperature: 0 } : {};
     this.client = new OpenAI({
       // Local servers usually need no key, but the SDK requires a non-empty string.
       apiKey: config.apiKey || 'no-key',
@@ -64,6 +71,7 @@ export class OpenAICompatibleProvider implements Provider {
             { role: 'user', content: req.user },
           ],
           ...responseFormat,
+          ...this.temperature,
         },
         { signal: req.signal },
       );

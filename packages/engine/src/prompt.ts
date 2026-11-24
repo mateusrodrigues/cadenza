@@ -2,7 +2,7 @@ import type { OutputTier } from '@cadenza/providers';
 import type { CheckSettings, Paragraph } from '@cadenza/shared';
 
 /** Bump whenever the prompt text changes; it is part of every cache key. */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 3;
 
 const DIALECT_NAMES: Record<CheckSettings['dialect'], string> = {
   'en-US': 'American English',
@@ -52,7 +52,14 @@ For each problem, return one suggestion:
 - subtype: a short label such as "spelling" or "wordiness".
 - ${explanation}
 
-Only suggest changes that clearly improve the text. Do not rewrite text that is already correct and clear. If nothing needs to change, return {"suggestions": []}.${
+Report every separate mistake, including several in one sentence. When one problem needs several nearby words changed (for example subject-verb agreement), give a single suggestion that changes them together, never two suggestions that each fix it a different way.
+
+A wrong suggestion is worse than a missed one.
+- correctness: report only real errors. Do not flag usage that is correct, even if formal or debated: "whom", "data" used as singular or plural, the style of quotation marks and apostrophes, or casual wording in casual messages.
+- clarity, style and tone: report wording that is wordy, vague, clichéd, repetitive or filler, or that sounds rude, passive-aggressive or unconfident, even when it is grammatically correct. Do not suggest a change that only says the same thing differently.
+The replacement must differ from the original. If nothing needs to change, return {"suggestions": []}.
+
+Write the JSON compactly on one line, without indentation.${
     tier === 'prompted'
       ? '\n\nReply with only the JSON object {"suggestions": [...]}, with no other text.'
       : ''
@@ -62,9 +69,12 @@ Only suggest changes that clearly improve the text. Do not rewrite text that is 
   return { system, user };
 }
 
-/** Rough output budget: suggestions rarely exceed the input length. */
+/**
+ * Output budget. A short paragraph can still need many suggestions (each ~45 tokens, ~70 with
+ * an explanation), so the floor is generous; it is only a cap, not a cost.
+ */
 export function maxTokensFor(paragraphs: Paragraph[], settings: CheckSettings): number {
   const chars = paragraphs.reduce((n, p) => n + p.text.length, 0);
-  const perChar = settings.explanations ? 1.2 : 0.8;
-  return Math.min(8192, Math.max(512, Math.ceil(chars * perChar)));
+  const perChar = settings.explanations ? 2 : 1.2;
+  return Math.min(8192, Math.max(1024, Math.ceil(chars * perChar)));
 }

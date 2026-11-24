@@ -4,7 +4,17 @@ import type { CheckOutcome } from './check.js';
 import { hash } from './paragraphs.js';
 
 /** A suggestion with offsets relative to the start of its paragraph. */
-type Relative = Omit<Suggestion, 'id' | 'pid'>;
+export type CachedSuggestion = Omit<Suggestion, 'id' | 'pid'>;
+type Relative = CachedSuggestion;
+
+/**
+ * A second cache level that outlives the scheduler, e.g. the extension's session storage, so
+ * results survive the browser suspending an idle service worker.
+ */
+export interface CacheStore {
+  load(keys: string[]): Promise<Map<string, CachedSuggestion[]>>;
+  save(entries: [string, CachedSuggestion[]][]): Promise<void>;
+}
 
 /** Runs one model call for a batch of paragraphs (with `start` set to 0). */
 export type BatchRunner = (paragraphs: Paragraph[], signal: AbortSignal) => Promise<CheckOutcome>;
@@ -51,12 +61,16 @@ export class CheckScheduler {
   private readonly inflight = new Map<string, Batch>();
   private readonly byRequester = new Map<string, Set<Batch>>();
 
-  constructor(private readonly maxCacheEntries = 2000) {}
+  constructor(
+    private readonly maxCacheEntries = 2000,
+    private readonly store?: CacheStore,
+  ) {}
 
   async check(req: ScheduleRequest): Promise<ScheduleResult> {
     const keyOf = (p: Paragraph) => `${req.configKey}|${hash(p.text)}|${p.text.length}`;
     const wanted = new Set(req.paragraphs.map(keyOf));
     this.release(req.requester, wanted);
+    await this.loadStored(req.paragraphs.map(keyOf));
 
     const joined = new Set<Batch>();
     const toSend: Paragraph[] = [];
@@ -124,6 +138,17 @@ export class CheckScheduler {
     this.cache.clear();
   }
 
+  private async loadStored(keys: string[]) {
+    if (!this.store) return;
+    const missing = keys.filter((k) => !this.cache.has(k) && !this.inflight.has(k));
+    if (missing.length === 0) return;
+    try {
+      for (const [key, rel] of await this.store.load(missing)) this.touch(key, rel);
+    } catch {
+      // The store is only an optimization.
+    }
+  }
+
   private startBatch(
     paragraphs: Paragraph[],
     keyOf: (p: Paragraph) => string,
@@ -160,6 +185,7 @@ export class CheckScheduler {
             out.set(key, rel);
             this.touch(key, rel);
           }
+          this.store?.save([...out]).catch(() => {});
           this.finish(batch);
           return out;
         },

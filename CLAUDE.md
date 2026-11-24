@@ -18,3 +18,5 @@ Build plan: `docs/PLAN.md`.
 - Page text is untrusted: no tools in model calls, validate all model output, never apply a
   suggestion without a user click.
 - Never log user text.
+- Prompt changes bump `PROMPT_VERSION` and are measured with `npm run eval` before they ship;
+  record results in `docs/evals.md`. Precision first.

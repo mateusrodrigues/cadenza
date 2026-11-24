@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { anchorSuggestions, refine } from './anchor.js';
 import { checkParagraphs } from './check.js';
 import { splitParagraphs } from './paragraphs.js';
-import { parseModelOutput } from './parse.js';
+import { parseModelOutput, parseTruncatedOutput } from './parse.js';
 
 describe('splitParagraphs', () => {
   it('splits on newlines with absolute offsets and skips blank lines', () => {
@@ -46,6 +46,22 @@ describe('parseModelOutput', () => {
   });
 });
 
+describe('parseTruncatedOutput', () => {
+  it('keeps the items completed before the output was cut off', () => {
+    const text =
+      '{"suggestions":[{"pid":"p","original":"a}\\"b","replacement":"c"},{"pid":"p","original":"d","replacement":"e"},{"pid":"p","orig';
+    expect(parseTruncatedOutput(text)).toEqual([
+      { pid: 'p', original: 'a}"b', replacement: 'c' },
+      { pid: 'p', original: 'd', replacement: 'e' },
+    ]);
+  });
+
+  it('returns null when no item is complete', () => {
+    expect(parseTruncatedOutput('{"suggestions":[{"pid":"p","orig')).toBeNull();
+    expect(parseTruncatedOutput('nothing')).toBeNull();
+  });
+});
+
 describe('refine', () => {
   it('leaves short originals alone', () => {
     expect(refine('tomorow', 'tomorrow')).toEqual([
@@ -63,6 +79,25 @@ describe('refine', () => {
       ['by', 'buy'],
     ]);
     for (const e of edits) expect(original.slice(e.start, e.end)).toBe(e.original);
+  });
+
+  it('keeps changes with no unchanged word between them together', () => {
+    const edits = refine(
+      'He suggested me to apply for the job.',
+      'He suggested that I apply for the job.',
+    );
+    expect(edits.map((e) => [e.original, e.replacement])).toEqual([['me to', 'that I']]);
+  });
+
+  it('never splits a clarity, style or tone rewrite, only trims it', () => {
+    const original = "I just feel like maybe this isn't the best approach, but I could be wrong.";
+    const replacement = 'I feel this may not be the best approach, but I could be wrong.';
+    const edits = refine(original, replacement, 'tone');
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.original).toBe("just feel like maybe this isn't");
+    expect(edits[0]?.replacement).toBe('feel this may not be');
+    const splitAsCorrectness = refine(original, replacement, 'correctness');
+    expect(splitAsCorrectness.length).toBeGreaterThan(1);
   });
 
   it('attaches pure insertions to the previous word', () => {

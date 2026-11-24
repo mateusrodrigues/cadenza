@@ -151,20 +151,25 @@ items are dropped, never shown.
 
 ### Prompt
 
-- One system prompt, versioned in `prompts/check.md`; a change bumps `PROMPT_VERSION`.
+- One system prompt in `packages/engine/src/prompt.ts`; a change bumps `PROMPT_VERSION` and
+  is measured with the evals first (`docs/evals.md`). Currently v3.
 - Page text goes in the user message, wrapped and labeled as text to check. The prompt tells
   the model to treat it only as data. Because the model has no tools and suggestions never
   apply without a click, injected instructions can at worst produce bad suggestions.
 - A compact variant for small local models (shorter instructions, fewer categories per call)
-  if evals show it helps.
+  if evals show it helps. Not needed so far: the main local cost was output tokens, which
+  compact JSON cut by ~40%.
 
 ### When checks run
 
 - Debounce: 700 ms after typing stops, plus on blur.
 - Only paragraphs whose hash changed are sent; results are cached by
-  `hash(text + settings + provider + model + prompt version)` in memory and IndexedDB.
+  `hash(text + settings + provider + model + prompt version)` in memory and in
+  `chrome.storage.session` (in memory only, cleared when the browser closes), so results survive
+  Chrome suspending the idle worker.
 - A newer edit to a paragraph aborts its in-flight request (`AbortController`).
-- Per-provider concurrency limit and backoff on rate limits.
+- Per-provider concurrency limit (1 for local servers, 4 hosted); queued requests nobody needs
+  any more are dropped before they're sent; after a rate limit, pause and retry once.
 - Between results, existing underlines are kept in place by mapping offsets through the edit;
   a suggestion whose `original` text no longer matches is removed.
 
@@ -284,7 +289,12 @@ verified reachable with an invalid key; the stub server covers Ollama's origin c
 - **Exit:** Test connection passes against at least OpenAI, Anthropic, Gemini, OpenRouter,
   Ollama and LM Studio.
 
-### Phase 3 — Checking engine and evals (week 3)
+### Phase 3 — Checking engine and evals (week 3) — ✅ done
+
+Done: 205-sample labeled corpus and runner (`evals/`), prompt v3, request limiter with
+rate-limit backoff, session-storage cache, truncated-output recovery. Results and recommended
+models in `docs/evals.md`; the exit target is met on `claude-haiku-5-5`. Only one hosted and one
+local model were measured (no other keys here).
 
 - Prompt v1, structured-output tiers, validation, offsets, cache, scheduling, cancellation.
 - Evals: 150+ labeled samples (typos, grammar, wordy prose, tone, plus _clean_ text to measure

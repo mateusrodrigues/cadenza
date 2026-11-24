@@ -254,3 +254,57 @@ test.describe('hosted providers (network)', () => {
     });
   }
 });
+
+test('check results survive the service worker being stopped', async ({ context, worker }) => {
+  await worker.evaluate(async () => {
+    await chrome.storage.local.set({
+      settings: {
+        version: 2,
+        enabled: true,
+        providers: [
+          {
+            id: 'stub',
+            name: 'Stub',
+            presetId: 'custom',
+            kind: 'openai-compatible',
+            baseURL: 'http://127.0.0.1:4600/v1',
+            apiKey: null,
+            model: 'stub-model',
+            explanations: false,
+            slowMode: false,
+          },
+        ],
+        activeProviderId: 'stub',
+        dialect: 'en-US',
+        categories: ['correctness', 'clarity', 'style', 'tone'],
+        disabledSites: [],
+      },
+    });
+  });
+  // The stub refuses extension origins on POST; allow it the way the settings page does.
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html`);
+  await options.evaluate(() =>
+    chrome.runtime.sendMessage({ type: 'cadenza/allow-origin', origin: 'http://127.0.0.1:4600' }),
+  );
+
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  const typeText = async () => {
+    await page.locator('#textarea').click();
+    await page.keyboard.type('See you tomorow.');
+    await expect(page.locator('cadenza-overlay')).toHaveAttribute('data-count', '1', {
+      timeout: 15_000,
+    });
+  };
+  await typeText();
+  const posts = () => stub.origins.filter((o) => o?.startsWith('POST')).length;
+  const before = posts();
+
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('ServiceWorker.enable');
+  await cdp.send('ServiceWorker.stopAllWorkers');
+  await page.reload();
+  await typeText();
+  expect(posts()).toBe(before);
+});

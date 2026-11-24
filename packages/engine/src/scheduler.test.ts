@@ -3,7 +3,12 @@ import type { Paragraph } from '@cadenza/shared';
 import { describe, expect, it } from 'vitest';
 import type { CheckOutcome } from './check.js';
 import { splitParagraphs } from './paragraphs.js';
-import { type BatchRunner, CheckScheduler } from './scheduler.js';
+import {
+  type BatchRunner,
+  type CachedSuggestion,
+  type CacheStore,
+  CheckScheduler,
+} from './scheduler.js';
 
 /** A runner that flags every "teh" and records what it was asked to check. */
 function makeRunner() {
@@ -50,7 +55,7 @@ function outcomeFor(paragraphs: Paragraph[]): CheckOutcome {
       },
     ];
   });
-  return { suggestions, tier: 'json_schema', usage: null, dropped: 0 };
+  return { suggestions, tier: 'json_schema', usage: null, dropped: 0, items: [] };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -209,5 +214,39 @@ describe('CheckScheduler with the real pipeline', () => {
       'tomorow',
       'very unique',
     ]);
+  });
+});
+
+describe('CheckScheduler with a persistent store', () => {
+  it('reuses results from the store instead of calling the model again', async () => {
+    const saved = new Map<string, CachedSuggestion[]>();
+    const store: CacheStore = {
+      load: async (keys) =>
+        new Map(keys.flatMap((k) => (saved.has(k) ? [[k, saved.get(k) ?? []]] : []))),
+      save: async (entries) => {
+        for (const [k, v] of entries) saved.set(k, v);
+      },
+    };
+    const text = 'Fix teh typo.';
+    const first = makeRunner();
+    await new CheckScheduler(100, store).check({
+      requester: 'r',
+      configKey: 'k',
+      paragraphs: splitParagraphs(text),
+      run: first.runner,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(saved.size).toBe(1);
+
+    // A new scheduler, as after the service worker restarts.
+    const second = makeRunner();
+    const { suggestions } = await new CheckScheduler(100, store).check({
+      requester: 'r',
+      configKey: 'k',
+      paragraphs: splitParagraphs(text),
+      run: second.runner,
+    });
+    expect(second.calls).toEqual([]);
+    expect(suggestions.map((s) => text.slice(s.start, s.end))).toEqual(['teh']);
   });
 });

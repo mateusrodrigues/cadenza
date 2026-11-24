@@ -3,10 +3,13 @@ import {
   checkParagraphs,
   hash,
   PROMPT_VERSION,
+  RequestLimiter,
   splitParagraphs,
 } from '@cadenza/engine';
 import {
   createProvider,
+  getPreset,
+  isLocalURL,
   type OutputTier,
   type Provider,
   type ProviderConfig,
@@ -26,9 +29,16 @@ import type {
   WorkerError,
 } from '../lib/messages';
 import { allowOrigin } from '../lib/origin-rules';
-import { activeProvider, checkSettingsFor, loadSettings, saveSettings } from '../lib/settings';
+import { sessionCacheStore } from '../lib/session-cache';
+import {
+  activeProvider,
+  checkSettingsFor,
+  loadSettings,
+  type SavedProvider,
+  saveSettings,
+} from '../lib/settings';
 
-const scheduler = new CheckScheduler();
+const scheduler = new CheckScheduler(2000, sessionCacheStore);
 /** Output tier that worked last time, per provider+model, so failed tiers aren't retried. */
 const tierCache = new Map<string, OutputTier>();
 let providerCache: { key: string; provider: Provider } | null = null;
@@ -96,14 +106,18 @@ async function handleCheck(msg: CheckMessage, frameKey: string): Promise<CheckRe
       ...(msg.priority ? { priority: msg.priority } : {}),
       ...(provider.slowMode ? { maxNew: 1 } : {}),
       run: (paragraphs, signal) =>
-        checkParagraphs({
-          provider: instance,
-          model,
-          paragraphs,
-          settings: check,
-          tier: tierCache.get(tierKey) ?? 'json_schema',
+        limiterFor(tierKey, provider).run(
+          (s) =>
+            checkParagraphs({
+              provider: instance,
+              model,
+              paragraphs,
+              settings: check,
+              tier: tierCache.get(tierKey) ?? 'json_schema',
+              signal: s,
+            }),
           signal,
-        }),
+        ),
     });
     if (result.outcome) tierCache.set(tierKey, result.outcome.tier);
     return {
@@ -179,4 +193,20 @@ async function moveLegacyKeys(): Promise<void> {
     | undefined;
   const hasKey = stored?.provider?.apiKey || stored?.providers?.some((p) => p.apiKey);
   if (hasKey) await saveSettings(await loadSettings());
+}
+
+const limiters = new Map<string, RequestLimiter>();
+
+/**
+ * Local servers work through one request at a time anyway; queueing here lets a stale request
+ * be dropped before it costs a minute of CPU. Hosted APIs get a few at once.
+ */
+function limiterFor(key: string, provider: SavedProvider): RequestLimiter {
+  let limiter = limiters.get(key);
+  if (!limiter) {
+    const local = getPreset(provider.presetId)?.local || isLocalURL(provider.baseURL);
+    limiter = new RequestLimiter(local ? 1 : 4);
+    limiters.set(key, limiter);
+  }
+  return limiter;
 }

@@ -12,7 +12,7 @@ import {
   type Suggestion,
 } from '@cadenza/shared';
 import { anchorSuggestions } from './anchor.js';
-import { parseModelOutput } from './parse.js';
+import { parseModelOutput, parseTruncatedOutput } from './parse.js';
 import { buildPrompt, maxTokensFor } from './prompt.js';
 
 export interface CheckOptions {
@@ -32,11 +32,19 @@ export interface CheckOutcome {
   usage: Usage | null;
   /** Items the model returned that could not be validated or anchored. */
   dropped: number;
+  /** The model's items as returned, before validation and anchoring (for evals). */
+  items: unknown[];
 }
 
 export async function checkParagraphs(opts: CheckOptions): Promise<CheckOutcome> {
   if (opts.paragraphs.length === 0) {
-    return { suggestions: [], tier: opts.tier ?? 'json_schema', usage: null, dropped: 0 };
+    return {
+      suggestions: [],
+      tier: opts.tier ?? 'json_schema',
+      usage: null,
+      dropped: 0,
+      items: [],
+    };
   }
   const startAt = OUTPUT_TIERS.indexOf(opts.tier ?? 'json_schema');
   let lastError: unknown;
@@ -53,7 +61,10 @@ export async function checkParagraphs(opts: CheckOptions): Promise<CheckOutcome>
         maxTokens: maxTokensFor(opts.paragraphs, opts.settings),
         ...(opts.signal ? { signal: opts.signal } : {}),
       });
-      const items = parseModelOutput(result.text);
+      // Output cut off by the token limit still carries the suggestions completed before it.
+      const items =
+        parseModelOutput(result.text) ??
+        (result.truncated ? parseTruncatedOutput(result.text) : null);
       if (items === null) {
         throw new ProviderError(
           'bad_output',
@@ -62,8 +73,9 @@ export async function checkParagraphs(opts: CheckOptions): Promise<CheckOutcome>
             : 'The model did not return valid JSON.',
         );
       }
-      const suggestions = anchorSuggestions(items, opts.paragraphs);
-      return { suggestions, tier, usage: result.usage, dropped: items.length - suggestions.length };
+      const stats = { dropped: 0 };
+      const suggestions = anchorSuggestions(items, opts.paragraphs, stats);
+      return { suggestions, tier, usage: result.usage, dropped: stats.dropped, items };
     } catch (err) {
       if (err instanceof ProviderError && err.kind === 'unsupported_output') {
         lastError = err;

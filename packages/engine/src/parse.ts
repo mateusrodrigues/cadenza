@@ -23,3 +23,43 @@ export function parseModelOutput(text: string): unknown[] | null {
   }
   return null;
 }
+
+/**
+ * Recover the complete suggestions from output cut off by the token limit, e.g.
+ * `{"suggestions":[{…},{…},{"pid":"p1","orig` → the first two items. Returns null if not even
+ * one item is complete.
+ */
+export function parseTruncatedOutput(text: string): unknown[] | null {
+  const key = text.search(/"suggestions"\s*:\s*\[/);
+  if (key === -1) return null;
+  const items: unknown[] = [];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let itemStart = -1;
+  for (let i = text.indexOf('[', key) + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') {
+      if (depth === 0) itemStart = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && itemStart !== -1) {
+        try {
+          items.push(JSON.parse(text.slice(itemStart, i + 1)));
+        } catch {
+          // skip a malformed item
+        }
+        itemStart = -1;
+      }
+    } else if (ch === ']' && depth === 0) break;
+  }
+  return items.length > 0 ? items : null;
+}

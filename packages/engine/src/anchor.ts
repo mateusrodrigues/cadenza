@@ -1,5 +1,6 @@
 import {
   CATEGORIES,
+  type Category,
   type ModelSuggestion,
   ModelSuggestionSchema,
   type Paragraph,
@@ -13,25 +14,32 @@ const REFINE_MIN_WORDS = 4;
 
 /**
  * Turn raw model items into suggestions with exact offsets. Items that fail validation, can't
- * be found in their paragraph, or change nothing are dropped. Coarse rewrites (a model
- * replacing a whole sentence) are split into minimal word-level edits. Overlaps are resolved
- * in favor of the higher-priority category.
+ * be found in their paragraph, or change nothing are dropped (and counted in `stats`). Coarse
+ * rewrites are narrowed to the words that change (see `refine`). Overlaps are resolved in
+ * favor of the higher-priority category.
  */
-export function anchorSuggestions(items: unknown[], paragraphs: Paragraph[]): Suggestion[] {
+export function anchorSuggestions(
+  items: unknown[],
+  paragraphs: Paragraph[],
+  stats?: { dropped: number },
+): Suggestion[] {
   const byPid = new Map(paragraphs.map((p) => [p.pid, p]));
   const out: Suggestion[] = [];
 
   for (const item of items) {
     const parsed = ModelSuggestionSchema.safeParse(item);
-    if (!parsed.success) continue;
-    const s = parsed.data;
-    const p = byPid.get(s.pid);
-    if (!p || s.original === s.replacement) continue;
+    const s = parsed.success ? parsed.data : null;
+    const p = s ? byPid.get(s.pid) : undefined;
+    const local =
+      s && p && s.original !== s.replacement
+        ? findOccurrence(p.text, s.original, s.occurrence ?? 1)
+        : -1;
+    if (!s || !p || local === -1) {
+      if (stats) stats.dropped++;
+      continue;
+    }
 
-    const local = findOccurrence(p.text, s.original, s.occurrence ?? 1);
-    if (local === -1) continue;
-
-    for (const edit of refine(s.original, s.replacement)) {
+    for (const edit of refine(s.original, s.replacement, s.category)) {
       const start = p.start + local + edit.start;
       const end = p.start + local + edit.end;
       out.push(makeSuggestion(s, p.pid, start, end, edit.original, edit.replacement));
@@ -57,18 +65,26 @@ interface Edit {
   replacement: string;
 }
 
-/** Split a rewrite into minimal edits. Offsets are relative to `original`. */
-export function refine(original: string, replacement: string): Edit[] {
+/**
+ * Narrow a rewrite to the words that change. Offsets are relative to `original`.
+ *
+ * A correctness rewrite of a whole sentence often fixes several independent mistakes; those
+ * become separate suggestions when unchanged words lie between them. Changes with nothing but
+ * spaces or punctuation between them stay together ("me to apply" → "that I apply" is one
+ * fix; "me" → "that" alone would be wrong). A clarity, style or tone rewrite is one change
+ * however many words it touches, so it is only trimmed, never split.
+ */
+export function refine(original: string, replacement: string, category?: Category): Edit[] {
   const whole = [{ start: 0, end: original.length, original, replacement }];
   if (original.trim().split(/\s+/).length < REFINE_MIN_WORDS) return whole;
 
   const parts = diffWordsWithSpace(original, replacement);
-  const edits: Edit[] = [];
+  const raw: Edit[] = [];
   let pos = 0;
   let current: Edit | null = null;
   for (const part of parts) {
     if (!part.added && !part.removed) {
-      if (current) edits.push(current);
+      if (current) raw.push(current);
       current = null;
       pos += part.value.length;
       continue;
@@ -82,7 +98,21 @@ export function refine(original: string, replacement: string): Edit[] {
       current.replacement += part.value;
     }
   }
-  if (current) edits.push(current);
+  if (current) raw.push(current);
+
+  const splittable = category === undefined || category === 'correctness';
+  const edits: Edit[] = [];
+  for (const e of raw) {
+    const prev = edits.at(-1);
+    const gap = prev ? original.slice(prev.end, e.start) : '';
+    if (prev && (!splittable || !/[\p{L}\p{N}]/u.test(gap))) {
+      prev.replacement += gap + e.replacement;
+      prev.original = original.slice(prev.start, e.end);
+      prev.end = e.end;
+    } else {
+      edits.push({ ...e });
+    }
+  }
 
   const result = edits
     .map((e) => trimEdit(original, e))
