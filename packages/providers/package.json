@@ -7,8 +7,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "openai": "^7.63.0",
-    "@cadenza/shared": "*"
+    "@anthropic-ai/sdk": "^1.13.0",
+    "@cadenza/shared": "*",
+    "@google/genai": "^3.6.1",
+    "openai": "^7.63.0"
   },
   "sideEffects": false
 }

@@ -72,3 +72,27 @@ function locate(map: TextMap, offset: number, isEnd: boolean) {
   }
   return null;
 }
+
+/** Offset in TextMap.text of a DOM position (e.g. the caret), or null if outside the map. */
+export function offsetOf(map: TextMap, node: Node, offset: number): number | null {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const seg = map.segments.find((s) => s.node === node);
+    return seg ? seg.start + Math.min(offset, seg.end - seg.start) : null;
+  }
+  const child = node.childNodes[offset];
+  if (!child) {
+    // Caret at the end of an element: just after its last text.
+    let end: number | null = null;
+    for (const seg of map.segments) if (node.contains(seg.node)) end = seg.end;
+    if (end !== null) return end;
+  }
+  // Otherwise: the first text at or after the position.
+  const anchor = child ?? node;
+  for (const seg of map.segments) {
+    if (anchor === seg.node || anchor.contains(seg.node)) return seg.start;
+    if (anchor.compareDocumentPosition(seg.node) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      return seg.start;
+    }
+  }
+  return map.text.length;
+}

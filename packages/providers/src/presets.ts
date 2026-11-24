@@ -157,3 +157,24 @@ export const PRESETS: ProviderPreset[] = [
 export function getPreset(id: string): ProviderPreset | undefined {
   return PRESETS.find((p) => p.id === id);
 }
+
+/** True for endpoints on this machine or the local network (no data leaves the user's network). */
+export function isLocalURL(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return false;
+  }
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host === '::1' ||
+    host === '0.0.0.0' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}

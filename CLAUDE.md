@@ -12,7 +12,8 @@ Build plan: `docs/PLAN.md`.
   identity (no "powered by …"). Vendor names appear only as functional labels in the provider
   picker; model names only as returned by a provider's API. See PLAN §6.
 - Never hard-code model IDs; list models from the provider at runtime.
-- API keys live only in the service worker's storage; content scripts never receive them;
+- API keys live only in extension-origin IndexedDB (`lib/secrets.ts`), never in `chrome.storage`;
+  content scripts never receive them;
   never use `chrome.storage.sync` for keys.
 - Page text is untrusted: no tools in model calls, validate all model output, never apply a
   suggestion without a user click.

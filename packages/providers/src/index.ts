@@ -1,9 +1,12 @@
-import { ProviderError } from './errors.js';
+import { AnthropicProvider } from './anthropic.js';
+import { GeminiProvider } from './gemini.js';
 import { MockProvider } from './mock.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
 import type { Provider, ProviderConfig } from './types.js';
 
+export * from './anthropic.js';
 export * from './errors.js';
+export * from './gemini.js';
 export * from './mock.js';
 export * from './openai-compatible.js';
 export * from './presets.js';
@@ -16,8 +19,8 @@ export function createProvider(config: ProviderConfig): Provider {
     case 'mock':
       return new MockProvider();
     case 'anthropic':
+      return new AnthropicProvider(config);
     case 'gemini':
-      // Adapters land in Phase 2 (official vendor SDKs; bundling verified in Phase 0).
-      throw new ProviderError('not_implemented', `The ${config.kind} adapter is not built yet.`);
+      return new GeminiProvider(config);
   }
 }

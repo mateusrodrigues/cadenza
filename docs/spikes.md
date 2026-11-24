@@ -6,14 +6,14 @@ No hosted-provider keys were available, so the hosted items are carried into Pha
 
 ## Summary
 
-| Question                                                    | Answer                                                                                                                          | Evidence                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Can the service worker call a local server?                 | **Yes, with no host permission** (llama.cpp reflects any `Origin` in CORS headers)                                              | `e2e/spikes.spec.ts`                    |
-| Do the vendor SDKs run in an MV3 service worker?            | **Yes**: OpenAI, Anthropic and Google GenAI SDKs all bundle for the browser with no Node built-ins and complete requests        | Extension build + scratch spike (below) |
-| Can API keys be hidden from content scripts?                | **Yes**: `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })` is available and now runs at worker startup | `e2e/spikes.spec.ts`                    |
-| Does `::highlight()` render colored wavy/dotted underlines? | **Yes**; highlights registered from the content script's isolated world are visible to the page and render correctly            | `e2e/extension.spec.ts` + screenshots   |
-| Do textarea/input overlays line up with the text?           | **Yes** on the test page (screenshot-checked)                                                                                   | `e2e/extension.spec.ts`                 |
-| Is a 14B model on CPU fast enough for live checks?          | **No**: ~40–140 s per check. Needs a GPU or a much smaller model                                                                | Below                                   |
+| Question                                                    | Answer                                                                                                                   | Evidence                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| Can the service worker call a local server?                 | **Yes, with no host permission** (llama.cpp reflects any `Origin` in CORS headers)                                       | `e2e/spikes.spec.ts`                    |
+| Do the vendor SDKs run in an MV3 service worker?            | **Yes**: OpenAI, Anthropic and Google GenAI SDKs all bundle for the browser with no Node built-ins and complete requests | Extension build + scratch spike (below) |
+| Can API keys be hidden from content scripts?                | **Yes, but not by `setAccessLevel` alone** — see Phase 2 below; keys moved to extension-origin IndexedDB                 | `e2e/providers.spec.ts`                 |
+| Does `::highlight()` render colored wavy/dotted underlines? | **Yes**; highlights registered from the content script's isolated world are visible to the page and render correctly     | `e2e/extension.spec.ts` + screenshots   |
+| Do textarea/input overlays line up with the text?           | **Yes** on the test page (screenshot-checked)                                                                            | `e2e/extension.spec.ts`                 |
+| Is a 14B model on CPU fast enough for live checks?          | **No**: ~40–140 s per check. Needs a GPU or a much smaller model                                                         | Below                                   |
 
 ## Local server (llama.cpp + phi4, CPU)
 
@@ -83,11 +83,59 @@ Scratch extension (not in the repo) bundling `@anthropic-ai/sdk` 1.13.0 and `@go
 - Branded Google Chrome no longer loads unpacked extensions from the command line, so e2e tests
   use Playwright's Chromium (`channel: 'chromium'`).
 
-## Still open (moved to Phase 2)
+## Phase 2 findings
 
-- Hosted providers: latency (p50/p95), structured-output support, and whether their APIs
-  accept direct calls from an extension without `host_permissions`.
-- Ollama, LM Studio and vLLM: origin handling and `json_schema` support.
-- Hit-testing underlines (for cards) in Gmail and GitHub.
-- Confirm from a content script that `storage.local` is actually unreadable after
-  `setAccessLevel` (the API call succeeds; the effect wasn't observed directly).
+Run on 2026-11-24 with Playwright Chromium. No real API keys or Ollama/LM Studio/vLLM installs
+were available; hosted APIs were called with a deliberately invalid key.
+
+### Hosted APIs from the extension
+
+OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Together and Fireworks
+all accept direct calls from the service worker **with no host permission**: each answers an
+invalid key with an auth error, not a CORS/network failure (`CADENZA_NET_TESTS=1` in
+`e2e/providers.spec.ts`). Mistral's fixed CORS header list does accept the OpenAI SDK's
+`x-stainless-*` headers. OpenRouter lists models without a key.
+
+- xAI (and Gemini) answer a bad key with **400**, not 401; `classifyHttpError` now reads a 400
+  that mentions the API key as `auth`.
+- → No `host_permissions` for hosted vendors.
+- Still unmeasured (needs real keys): latency p50/p95 and which output tier each model reaches.
+  Run `npm test` with `CADENZA_LIVE_BASE_URL` / `CADENZA_LIVE_MODEL` / `CADENZA_LIVE_API_KEY`.
+
+### Local servers that reject extension origins
+
+Ollama rejects `chrome-extension://` origins unless `OLLAMA_ORIGINS` includes them. Tested with
+a stub server that returns 403 for any extension `Origin` (`e2e/stub-server.ts`):
+
+- With the host permission granted, Chrome sends **no `Origin` on GET** (`/v1/models` works)
+  but **does send `chrome-extension://…` on POST** (checks are refused).
+- A `declarativeNetRequest` dynamic rule (`declarativeNetRequestWithHostAccess`) that removes
+  `Origin` for Cadenza's own requests to that origin fixes it. Settings offers this as
+  "Allow connection" when a local endpoint answers 403 or can't be reached; it requests the
+  host permission and adds the rule.
+- So users don't need to set `OLLAMA_ORIGINS`. Not yet tried against real Ollama, LM Studio or
+  vLLM; LM Studio's CORS switch default and Ollama's `json_schema` support remain unconfirmed.
+
+### API-key storage
+
+`storage.local.setAccessLevel('TRUSTED_CONTEXTS')` does lock content scripts out — but only
+once the service worker has run. Before that, a content script **could** read `storage.local`
+(observed in e2e). The level isn't stored with the data, so this window can recur whenever the
+worker hasn't started yet.
+
+→ API keys now live in the extension origin's **IndexedDB** (`lib/secrets.ts`), which content
+scripts (running in the page's origin) can never open. Settings in `storage.local` hold
+`apiKey: null`; the worker moves keys out of settings saved by earlier builds at startup. The
+access-level lock stays as a second layer.
+
+### Bug found: batched paragraphs lost suggestions
+
+The scheduler gave every paragraph in a batch offset 0, so overlap resolution dropped
+suggestions in later paragraphs that overlapped earlier ones by position. Paragraphs are now
+laid out end to end; covered by a unit test.
+
+## Still open
+
+- Hosted latency (p50/p95) and structured-output tier per provider — needs real keys.
+- Real Ollama, LM Studio and vLLM: confirm "Allow connection" and `json_schema` support.
+- Hit-testing underlines (for cards) in Gmail and GitHub (Phase 4/5).

@@ -85,10 +85,11 @@ interface Provider {
 
 ### API keys
 
-- Entered on the Options page, stored in `chrome.storage.local`, read only by the service
-  worker. Content scripts never receive keys; they only send text and receive suggestions.
-  The worker calls `storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })` at
-  startup so content scripts can't read the store at all.
+- Entered on the Options page and stored in the extension origin's IndexedDB
+  (`lib/secrets.ts`), apart from the other settings. Content scripts run in the page's origin,
+  so they can never open it; they never receive keys and only send text and receive
+  suggestions. The worker also calls `storage.local.setAccessLevel({ accessLevel:
+  'TRUSTED_CONTEXTS' })` at startup, which only takes effect once the worker has run (Phase 2).
 - Optional passphrase lock: keys encrypted with WebCrypto (AES-GCM, PBKDF2-derived key),
   unlocked once per browser session into `chrome.storage.session`.
 - Never in `chrome.storage.sync` (it would copy keys to the user's Google account).
@@ -101,7 +102,10 @@ interface Provider {
 - `optional_host_permissions`: `http://localhost/*`, `http://127.0.0.1/*`, `https://*/*` —
   requested at runtime with `chrome.permissions.request` only for an endpoint that fails
   without it.
-- `host_permissions` for hosted vendors only if Phase 2 shows their APIs need it.
+- No `host_permissions` for hosted vendors: Phase 2 showed all ten hosted presets accept direct
+  calls from the extension.
+- `declarativeNetRequestWithHostAccess`: for a local server that rejects extension origins
+  (Ollama), "Allow connection" adds a rule that drops `Origin` on Cadenza's requests to it.
 - Content scripts on `<all_urls>` (needed to work in any text field).
 
 ---
@@ -244,8 +248,8 @@ servers were available).
   reach.
 - **Latency:** p50/p95 for a 3-paragraph check on a fast hosted model and a 7–8B local model.
   Target: p50 under 2 s hosted.
-- **Key storage:** confirm content scripts cannot read the key store (or move keys to
-  `storage.session` + encrypted `storage.local`).
+- **Key storage:** confirm content scripts cannot read the key store. (Phase 2: they can read
+  `storage.local` until the worker runs, so keys moved to extension-origin IndexedDB.)
 - `::highlight()` supports colored wavy/dotted `text-decoration`; hit-testing in Gmail and GitHub.
 - **Exit:** findings in `docs/spikes.md`.
 
@@ -260,7 +264,15 @@ underlines via the Highlight API, and a basic settings page.
 - Extension loads, worker answers content-script messages with mock suggestions.
 - **Exit:** load unpacked; a textarea on a test page gets mock underlines.
 
-### Phase 2 — Providers (week 2)
+### Phase 2 — Providers (week 2) — ✅ done, except live-key checks
+
+Done: Anthropic and Gemini adapters (next to OpenAI-compatible), several saved providers with
+one active, settings screen with model loading, Test connection and the "Allow connection" fix,
+slow model mode with a checking/done badge, a per-paragraph cache and scheduler, API keys moved
+to extension-origin IndexedDB. Findings in `docs/spikes.md`.
+
+Not done here: the exit check needs real keys and Ollama/LM Studio installs. Hosted APIs were
+verified reachable with an invalid key; the stub server covers Ollama's origin check.
 
 - Three adapters, presets, model listing, error/usage normalization.
 - Options → Providers screen with key entry, model picker, Test connection.

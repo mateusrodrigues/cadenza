@@ -5,6 +5,8 @@ export type ProviderErrorKind =
   /** The requested output tier (e.g. json_schema) isn't supported; try a lower tier. */
   | 'unsupported_output'
   | 'bad_output'
+  /** The model or provider declined to process the text (safety systems). */
+  | 'refused'
   | 'not_found'
   | 'network'
   | 'unavailable'
@@ -35,6 +37,10 @@ const OUTPUT_FORMAT_HINT =
 const CONTEXT_HINT = /context length|context window|too long|maximum context|too many tokens/i;
 
 /** Classify an HTTP failure into a ProviderErrorKind using status and message text. */
+/** e.g. "Incorrect API key provided", "API key not valid", "invalid api key". */
+const BAD_KEY_HINT =
+  /(incorrect|invalid|not valid|wrong)[^.]{0,20}api[ _-]?key|api[ _-]?key[^.]{0,20}(incorrect|invalid|not valid)/i;
+
 export function classifyHttpError(status: number | null, message: string): ProviderErrorKind {
   if (status === 401 || status === 403) return 'auth';
   if (status === 404) return 'not_found';
@@ -42,6 +48,8 @@ export function classifyHttpError(status: number | null, message: string): Provi
   if (status === 400 || status === 422) {
     if (CONTEXT_HINT.test(message)) return 'context_too_long';
     if (OUTPUT_FORMAT_HINT.test(message)) return 'unsupported_output';
+    // Some providers (xAI, Gemini) answer a bad key with 400 instead of 401.
+    if (BAD_KEY_HINT.test(message)) return 'auth';
     return 'unknown';
   }
   if (status !== null && status >= 500) return 'unavailable';

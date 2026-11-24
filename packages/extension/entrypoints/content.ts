@@ -13,13 +13,7 @@ export default defineContentScript({
       // composedPath() reaches fields inside open shadow roots.
       const field = resolveField(event.composedPath()[0] ?? event.target);
       if (!field || sessions.has(field)) return;
-      sessions.set(
-        field,
-        new FieldSession(field, (error) => {
-          // Surfaced in the field badge in Phase 5; logged without any user text for now.
-          console.debug('[Cadenza]', error.kind, error.message);
-        }),
-      );
+      sessions.set(field, new FieldSession(field));
     };
 
     // Drop sessions whose field left the page.

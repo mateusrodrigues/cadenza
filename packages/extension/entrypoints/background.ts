@@ -1,97 +1,182 @@
-import { checkParagraphs } from '@cadenza/engine';
+import {
+  CheckScheduler,
+  checkParagraphs,
+  hash,
+  PROMPT_VERSION,
+  splitParagraphs,
+} from '@cadenza/engine';
 import {
   createProvider,
-  getPreset,
   type OutputTier,
   type Provider,
+  type ProviderConfig,
   ProviderError,
 } from '@cadenza/providers';
-import type { CheckMessage, CheckResponse, StatusResponse, WorkerMessage } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
-import { loadSettings } from '../lib/settings';
+import type {
+  AllowOriginResponse,
+  CheckMessage,
+  CheckResponse,
+  ContentMessage,
+  ListModelsResponse,
+  PageMessage,
+  StatusResponse,
+  TestResponse,
+  WorkerError,
+} from '../lib/messages';
+import { allowOrigin } from '../lib/origin-rules';
+import { activeProvider, checkSettingsFor, loadSettings, saveSettings } from '../lib/settings';
 
-/** In-flight checks by tab/frame/field; a newer request for a field aborts the older one. */
-const inflight = new Map<string, AbortController>();
+const scheduler = new CheckScheduler();
 /** Output tier that worked last time, per provider+model, so failed tiers aren't retried. */
 const tierCache = new Map<string, OutputTier>();
 let providerCache: { key: string; provider: Provider } | null = null;
 
+const TEST_TEXT = 'Their going to the store tomorow.';
+
 export default defineBackground(() => {
-  // API keys live in storage.local; content scripts must never be able to read them.
+  // Content scripts never need storage. API keys aren't kept there (see lib/secrets.ts), but lock
+  // it anyway, and move keys out of settings saved by earlier versions.
   void browser.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  void moveLegacyKeys();
 
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-    const msg = message as WorkerMessage;
-    // Only our own content scripts and pages may talk to the worker.
     if (sender.id !== browser.runtime.id) return false;
-    if (msg?.type === 'cadenza/check') {
-      handleCheck(msg, sender.tab?.id ?? -1, sender.frameId ?? 0).then(sendResponse);
+    const fromExtensionPage = sender.url?.startsWith(browser.runtime.getURL('/')) ?? false;
+    const msg = message as ContentMessage | PageMessage;
+    const reply = (p: Promise<unknown>) => {
+      p.then(sendResponse, (err) => sendResponse({ ok: false, error: toWorkerError(err) }));
       return true;
+    };
+
+    switch (msg?.type) {
+      case 'cadenza/check':
+        return reply(handleCheck(msg, `${sender.tab?.id ?? -1}:${sender.frameId ?? 0}`));
+      case 'cadenza/forget':
+        scheduler.forget(`${sender.tab?.id ?? -1}:${sender.frameId ?? 0}:${msg.fieldId}`);
+        return false;
     }
-    if (msg?.type === 'cadenza/status') {
-      handleStatus().then(sendResponse);
-      return true;
+    // Everything below handles keys or settings: extension pages only, never content scripts.
+    if (!fromExtensionPage) return false;
+    switch (msg?.type) {
+      case 'cadenza/status':
+        return reply(handleStatus());
+      case 'cadenza/list-models':
+        return reply(handleListModels(msg.config));
+      case 'cadenza/test':
+        return reply(handleTest(msg.config, msg.explanations));
+      case 'cadenza/allow-origin':
+        return reply(allowOrigin(msg.origin).then((): AllowOriginResponse => ({ ok: true })));
     }
     return false;
   });
 });
 
-async function handleCheck(
-  msg: CheckMessage,
-  tabId: number,
-  frameId: number,
-): Promise<CheckResponse> {
-  const key = `${tabId}:${frameId}:${msg.fieldId}`;
-  inflight.get(key)?.abort();
-  const controller = new AbortController();
-  inflight.set(key, controller);
+async function handleCheck(msg: CheckMessage, frameKey: string): Promise<CheckResponse> {
+  const settings = await loadSettings();
+  const provider = activeProvider(settings);
+  if (!settings.enabled || !provider) {
+    return { ok: true, suggestions: [], pending: 0, slow: false };
+  }
+  const model = provider.model;
+  if (!model) return fail({ kind: 'config', message: 'Choose a model in Cadenza settings.' });
 
+  const check = checkSettingsFor(settings, provider);
+  const configKey = hash(
+    JSON.stringify([provider.presetId, provider.baseURL, model, check, PROMPT_VERSION]),
+  );
+  const tierKey = `${provider.presetId}|${provider.baseURL}|${model}`;
+  const instance = getProvider(provider);
   try {
-    const settings = await loadSettings();
-    if (!settings.enabled) return { ok: true, suggestions: [] };
-    const model = settings.provider.model;
-    if (!model) return fail('config', 'Choose a model in Cadenza settings.');
-
-    const provider = getProvider(settings.provider);
-    const tierKey = `${settings.provider.presetId}|${settings.provider.baseURL}|${model}`;
-    const outcome = await checkParagraphs({
-      provider,
-      model,
+    const result = await scheduler.check({
+      requester: `${frameKey}:${msg.fieldId}`,
+      configKey,
       paragraphs: msg.paragraphs,
-      settings: settings.check,
-      tier: tierCache.get(tierKey) ?? 'json_schema',
-      signal: controller.signal,
+      ...(msg.priority ? { priority: msg.priority } : {}),
+      ...(provider.slowMode ? { maxNew: 1 } : {}),
+      run: (paragraphs, signal) =>
+        checkParagraphs({
+          provider: instance,
+          model,
+          paragraphs,
+          settings: check,
+          tier: tierCache.get(tierKey) ?? 'json_schema',
+          signal,
+        }),
     });
-    tierCache.set(tierKey, outcome.tier);
-    return { ok: true, suggestions: outcome.suggestions };
+    if (result.outcome) tierCache.set(tierKey, result.outcome.tier);
+    return {
+      ok: true,
+      suggestions: result.suggestions,
+      pending: result.pending,
+      slow: provider.slowMode,
+    };
   } catch (err) {
-    if (err instanceof ProviderError) return fail(err.kind, err.message);
-    return fail('unknown', err instanceof Error ? err.message : String(err));
-  } finally {
-    if (inflight.get(key) === controller) inflight.delete(key);
+    return fail(toWorkerError(err));
   }
 }
 
-function getProvider(config: Parameters<typeof createProvider>[0]): Provider {
+async function handleStatus(): Promise<StatusResponse> {
+  const settings = await loadSettings();
+  const p = activeProvider(settings);
+  return {
+    enabled: settings.enabled,
+    provider: p ? { name: p.name, model: p.model, slowMode: p.slowMode } : null,
+  };
+}
+
+async function handleListModels(config: ProviderConfig): Promise<ListModelsResponse> {
+  try {
+    return { ok: true, models: await createProvider(config).listModels() };
+  } catch (err) {
+    return { ok: false, error: toWorkerError(err) };
+  }
+}
+
+async function handleTest(config: ProviderConfig, explanations: boolean): Promise<TestResponse> {
+  if (!config.model) return { ok: false, error: { kind: 'config', message: 'Choose a model.' } };
+  const settings = await loadSettings();
+  const t0 = performance.now();
+  try {
+    const outcome = await checkParagraphs({
+      provider: createProvider(config),
+      model: config.model,
+      paragraphs: splitParagraphs(TEST_TEXT),
+      settings: { dialect: settings.dialect, categories: settings.categories, explanations },
+    });
+    return {
+      ok: true,
+      ms: Math.round(performance.now() - t0),
+      tier: outcome.tier,
+      found: outcome.suggestions.map(({ original, replacement }) => ({ original, replacement })),
+    };
+  } catch (err) {
+    return { ok: false, error: toWorkerError(err) };
+  }
+}
+
+function getProvider(config: ProviderConfig): Provider {
   const key = JSON.stringify(config);
   if (providerCache?.key !== key) providerCache = { key, provider: createProvider(config) };
   return providerCache.provider;
 }
 
-async function handleStatus(): Promise<StatusResponse> {
-  const settings = await loadSettings();
-  const preset = getPreset(settings.provider.presetId);
-  return {
-    enabled: settings.enabled,
-    provider: {
-      id: settings.provider.presetId,
-      label: preset?.label ?? 'Custom endpoint',
-      model: settings.provider.model,
-    },
-  };
+function toWorkerError(err: unknown): WorkerError {
+  if (err instanceof ProviderError)
+    return { kind: err.kind, message: err.message, status: err.status };
+  return { kind: 'unknown', message: err instanceof Error ? err.message : String(err) };
 }
 
-function fail(kind: string, message: string): CheckResponse {
-  return { ok: false, error: { kind, message }, cancelled: kind === 'cancelled' };
+function fail(error: WorkerError): CheckResponse {
+  return { ok: false, error, cancelled: error.kind === 'cancelled' };
+}
+
+/** Settings saved before keys moved to IndexedDB still hold them in `storage.local`. */
+async function moveLegacyKeys(): Promise<void> {
+  const stored = (await browser.storage.local.get('settings')).settings as
+    | { providers?: { apiKey?: string | null }[]; provider?: { apiKey?: string | null } }
+    | undefined;
+  const hasKey = stored?.provider?.apiKey || stored?.providers?.some((p) => p.apiKey);
+  if (hasKey) await saveSettings(await loadSettings());
 }

@@ -194,3 +194,79 @@ form select {
 #message[data-kind="error"] {
   color: var(--error);
 }
+
+.provider-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.provider-list:empty {
+  display: none;
+}
+
+.provider-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.provider-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.provider-text {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.provider-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 16px 12px;
+  margin-top: 12px;
+}
+
+.editor h3 {
+  font-size: 14px;
+}
+
+.hint {
+  margin: -6px 0 0 26px;
+  font-size: 13px;
+}
+
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 12px 0;
+}
+
+legend {
+  margin-bottom: 4px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+#fix {
+  margin-top: -4px;
+}
+
+[hidden] {
+  display: none !important;
+}

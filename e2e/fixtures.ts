@@ -1,7 +1,10 @@
 import { join } from 'node:path';
 import { type BrowserContext, test as base, chromium, type Worker } from '@playwright/test';
 
-export const EXTENSION_PATH = join(import.meta.dirname, '../packages/extension/.output/chrome-mv3');
+export const EXTENSION_PATH = join(
+  import.meta.dirname,
+  '../packages/extension/.output-e2e/chrome-mv3',
+);
 export const PAGE_URL = 'http://127.0.0.1:4173/';
 
 /** Launches Chromium with the built Cadenza extension loaded. */

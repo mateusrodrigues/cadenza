@@ -11,16 +11,27 @@
     <main>
       <h1>Cadenza settings</h1>
 
-      <section>
-        <h2>Provider</h2>
+      <section aria-labelledby="providers-heading">
+        <h2 id="providers-heading">Provider</h2>
         <p class="muted">
-          Cadenza sends the text you write to the provider you choose here, or to a model on
-          this computer. Your API key is stored only in this browser.
+          Cadenza sends the text you write to the provider you choose, or to a model running on
+          your own computer. API keys are stored only in this browser.
         </p>
-        <form id="provider-form">
+        <ul id="provider-list" class="provider-list"></ul>
+        <button id="add-provider" type="button">Add provider</button>
+
+        <form id="editor" class="editor" hidden>
+          <h3 id="editor-title">Add provider</h3>
           <label>Provider <select id="preset"></select></label>
-          <label>Endpoint URL <input id="base-url" type="url" placeholder="http://localhost:11434/v1" /></label>
-          <label>API key <input id="api-key" type="password" autocomplete="off" placeholder="Not needed for most local servers" /></label>
+          <label>Name <input id="name" type="text" required /></label>
+          <label>
+            Endpoint URL
+            <input id="base-url" type="url" placeholder="http://localhost:11434/v1" />
+          </label>
+          <label id="api-key-row">
+            <span>API key <span id="key-help"></span></span>
+            <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
+          </label>
           <label>
             Model
             <span class="inline">
@@ -28,13 +39,32 @@
               <button id="load-models" type="button">Load models</button>
             </span>
           </label>
-          <label class="check"><input id="explanations" type="checkbox" /> Explain each suggestion (slower on local models)</label>
+          <label class="check">
+            <input id="explanations" type="checkbox" /> Explain each suggestion
+          </label>
+          <label class="check">
+            <input id="slow-mode" type="checkbox" /> Slow model mode
+          </label>
+          <p class="hint muted">
+            Slow model mode checks one paragraph at a time and lets a check finish while you keep
+            typing. Turn it on for models running on a computer without a fast graphics card.
+          </p>
           <div class="actions">
             <button type="submit" class="primary">Save</button>
             <button id="test" type="button">Test connection</button>
+            <button id="cancel" type="button">Cancel</button>
           </div>
           <p id="message" role="status"></p>
+          <button id="fix" type="button" hidden></button>
         </form>
+      </section>
+
+      <section aria-labelledby="writing-heading">
+        <h2 id="writing-heading">Writing</h2>
+        <label>English variant <select id="dialect"></select></label>
+        <fieldset id="categories">
+          <legend>Suggest changes for</legend>
+        </fieldset>
       </section>
     </main>
     <script type="module" src="./main.ts"></script>

@@ -1,5 +1,6 @@
 import { CATEGORIES, type Suggestion } from '@cadenza/shared';
 import type { Renderer } from './renderer';
+import { trackPosition } from './track';
 
 /** Computed styles copied from the field so the mirror wraps text identically. */
 const MIRRORED = [
@@ -37,8 +38,7 @@ export class OverlayRenderer implements Renderer {
   private readonly host: HTMLElement;
   private readonly mirror: HTMLDivElement;
   private suggestions: Suggestion[] = [];
-  private readonly resizeObserver: ResizeObserver;
-  private readonly onScroll = () => this.position();
+  private readonly untrack: () => void;
 
   constructor(private readonly field: HTMLTextAreaElement | HTMLInputElement) {
     this.host = document.createElement('cadenza-overlay');
@@ -62,10 +62,7 @@ export class OverlayRenderer implements Renderer {
     root.append(style, this.mirror);
     document.documentElement.append(this.host);
 
-    this.resizeObserver = new ResizeObserver(() => this.position());
-    this.resizeObserver.observe(field);
-    window.addEventListener('scroll', this.onScroll, { capture: true, passive: true });
-    window.addEventListener('resize', this.onScroll, { passive: true });
+    this.untrack = trackPosition(field, () => this.position());
   }
 
   render(suggestions: Suggestion[]): void {
@@ -124,9 +121,7 @@ export class OverlayRenderer implements Renderer {
   }
 
   destroy(): void {
-    this.resizeObserver.disconnect();
-    window.removeEventListener('scroll', this.onScroll, { capture: true });
-    window.removeEventListener('resize', this.onScroll);
+    this.untrack();
     this.host.remove();
   }
 }

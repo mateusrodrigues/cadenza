@@ -9,7 +9,7 @@ import { join, relative } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname;
 const BLOCKLIST_FILE = join(ROOT, 'scripts/naming-blocklist.txt');
 const SURFACES = ['packages/extension', 'README.md', 'store', 'website'];
-const SKIP_DIRS = new Set(['node_modules', '.output', '.wxt', 'dist']);
+const SKIP_DIRS = new Set(['node_modules', '.output', '.output-e2e', '.wxt', 'dist']);
 const TEXT_EXT = /\.(ts|tsx|js|mjs|json|html|css|md|txt|svg|yml|yaml)$/;
 
 const terms = readFileSync(BLOCKLIST_FILE, 'utf8')

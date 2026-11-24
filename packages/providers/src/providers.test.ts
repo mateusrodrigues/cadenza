@@ -132,7 +132,43 @@ describe('presets', () => {
     }
   });
 
-  it('createProvider rejects adapters that are not built yet', () => {
-    expect(() => createProvider({ ...config, kind: 'anthropic' })).toThrow(ProviderError);
+  it('createProvider builds an adapter for every preset kind', () => {
+    for (const p of PRESETS) {
+      const provider = createProvider({
+        ...config,
+        presetId: p.id,
+        kind: p.kind,
+        baseURL: p.baseURL,
+      });
+      expect(provider.kind).toBe(p.kind);
+    }
+  });
+});
+
+describe('isLocalURL', () => {
+  it('recognizes loopback and private-network hosts', async () => {
+    const { isLocalURL } = await import('./presets.js');
+    for (const url of [
+      'http://localhost:11434/v1',
+      'http://127.0.0.1:8360/v1',
+      'http://[::1]:8080',
+      'http://192.168.1.5:1234',
+      'http://box.local:8000',
+    ]) {
+      expect(isLocalURL(url), url).toBe(true);
+    }
+    for (const url of ['https://api.openai.com/v1', 'https://example.com', 'not a url']) {
+      expect(isLocalURL(url), url).toBe(false);
+    }
+  });
+});
+
+describe('classifyHttpError', () => {
+  it('reads a 400 about the API key as an auth error', () => {
+    expect(
+      classifyHttpError(400, 'Incorrect API key provided. You can obtain an API key from …'),
+    ).toBe('auth');
+    expect(classifyHttpError(400, 'API key not valid. Please pass a valid API key.')).toBe('auth');
+    expect(classifyHttpError(400, 'max_tokens must be positive')).toBe('unknown');
   });
 });
