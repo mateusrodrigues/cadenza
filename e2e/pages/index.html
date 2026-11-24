@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cadenza test page</title>
+    <style>
+      body { font: 16px/1.5 Georgia, serif; max-width: 640px; margin: 40px auto; }
+      textarea, [contenteditable] { display: block; width: 100%; box-sizing: border-box;
+        padding: 10px; border: 1px solid #999; margin: 12px 0 32px; font: inherit; }
+      textarea { height: 120px; }
+      [contenteditable] { min-height: 80px; }
+    </style>
+  </head>
+  <body>
+    <h1>Fields</h1>
+    <label>Textarea <textarea id="textarea"></textarea></label>
+    <label>Input <input id="input" type="text" style="width: 100%; font: inherit; padding: 6px" /></label>
+    <div>Rich editor</div>
+    <div id="editor" contenteditable="true"><p>First paragraph.</p></div>
+    <label>Password <input id="password" type="password" /></label>
+    <label>Opted out <textarea id="optout" data-cadenza="off"></textarea></label>
+  </body>
+</html>

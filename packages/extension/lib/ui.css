@@ -1,0 +1,196 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1b1d29;
+  --muted: #6b6f80;
+  --border: #dfe1e8;
+  --accent: #242942;
+  --accent-fg: #ffffff;
+  --ok: #18794e;
+  --error: #c62a2f;
+  color-scheme: light dark;
+  font:
+    14px / 1.45 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161d;
+    --fg: #ecedf2;
+    --muted: #9a9db0;
+    --border: #2c2e3a;
+    --accent: #f5a623;
+    --accent-fg: #15161d;
+    --ok: #4cc38a;
+    --error: #ff6369;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 24px 0 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+/* Popup */
+body.popup {
+  width: 280px;
+  padding: 12px;
+}
+
+.popup header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.popup header h1 {
+  flex: 1;
+}
+
+.status .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.status .row span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup > button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+
+.switch span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.switch input:checked + span {
+  background: var(--accent);
+}
+
+.switch input:checked + span::after {
+  transform: translateX(14px);
+}
+
+/* Options */
+body.options main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+form label {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+form label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+form input:not([type="checkbox"]),
+form select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  min-width: 0;
+}
+
+.inline {
+  display: flex;
+  gap: 8px;
+}
+
+.inline select {
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+#message[data-kind="ok"] {
+  color: var(--ok);
+}
+
+#message[data-kind="error"] {
+  color: var(--error);
+}

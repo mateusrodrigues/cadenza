@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cadenza</title>
+    <link rel="stylesheet" href="../../lib/ui.css" />
+  </head>
+  <body class="popup">
+    <header>
+      <img src="/icon/32.png" alt="" width="20" height="20" />
+      <h1>Cadenza</h1>
+      <label class="switch" title="Turn Cadenza on or off" aria-label="Turn Cadenza on or off">
+        <input id="enabled" type="checkbox" />
+        <span></span>
+      </label>
+    </header>
+    <section class="status">
+      <div class="row"><span class="muted">Provider</span><span id="provider">…</span></div>
+      <div class="row"><span class="muted">Model</span><span id="model">…</span></div>
+    </section>
+    <button id="open-options" type="button">Settings</button>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "cadenza",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @cadenza/extension",
+    "build": "npm run build -w @cadenza/extension",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck -w @cadenza/extension",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "check:naming": "node scripts/check-naming.mjs",
+    "check": "npm run lint && npm run typecheck && npm run check:naming && npm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.9",
+    "@playwright/test": "^1.65.1",
+    "@types/chrome": "^0.3.8",
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.1"
+  }
+}

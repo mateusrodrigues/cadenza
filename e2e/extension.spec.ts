@@ -1,0 +1,77 @@
+import { expect, PAGE_URL, test } from './fixtures';
+
+// These tests run against the built-in test rules (mock provider), so they need no model.
+
+test('underlines mistakes in a textarea', async ({ context }) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  await page.locator('#textarea').click();
+  await page.keyboard.type('Their going to the store tomorow.\nThis is very unique.');
+  // "Their going", "tomorow", "very unique"
+  await expect(page.locator('cadenza-overlay[data-count="3"]')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/textarea.png' });
+});
+
+test('underlines mistakes in a text input', async ({ context }) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  await page.locator('#input').click();
+  await page.keyboard.type('I will recieve it ASAP');
+  await expect(page.locator('cadenza-overlay[data-count="2"]')).toHaveCount(1);
+});
+
+test('drops an underline as soon as its text is edited, then rechecks', async ({ context }) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  const field = page.locator('#textarea');
+  await field.click();
+  await page.keyboard.type('Read teh book.');
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
+  await field.fill('');
+  await page.keyboard.type('Read the book.');
+  await expect(page.locator('cadenza-overlay[data-count="0"]')).toHaveCount(1);
+});
+
+test('underlines mistakes in a contenteditable editor with the Highlight API', async ({
+  context,
+}) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  await page.locator('#editor p').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' This is very unique and teh best.');
+  // The content script registers highlights in its isolated world; the page's main world
+  // sees the same registry.
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        correctness: CSS.highlights.get('cadenza-correctness')?.size ?? 0,
+        style: CSS.highlights.get('cadenza-style')?.size ?? 0,
+      })),
+    )
+    .toEqual({ correctness: 1, style: 1 });
+  // The editor's DOM is untouched: still one <p> with plain text.
+  await expect(page.locator('#editor')).toHaveJSProperty(
+    'innerHTML',
+    '<p>First paragraph. This is very unique and teh best.</p>',
+  );
+  await page.screenshot({ path: 'test-results/contenteditable.png' });
+});
+
+test('stays off password fields and opted-out fields', async ({ context }) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  await page.locator('#password').click();
+  await page.keyboard.type('teh');
+  await page.locator('#optout').click();
+  await page.keyboard.type('teh');
+  await page.waitForTimeout(1500);
+  await expect(page.locator('cadenza-overlay')).toHaveCount(0);
+});
+
+test('popup shows the active provider', async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.locator('#provider')).toHaveText('Test rules (no AI)');
+  await expect(page.locator('#enabled')).toBeChecked();
+});

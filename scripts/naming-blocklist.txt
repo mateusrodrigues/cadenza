@@ -1,0 +1,24 @@
+# Names that must not appear in outward-facing Cadenza material (docs/PLAN.md §6).
+# One term per line, matched case-insensitively on word boundaries.
+
+# Competing writing assistants
+Grammarly
+ProWritingAid
+LanguageTool
+Wordtune
+QuillBot
+Hemingway Editor
+Ginger Software
+
+# AI model and assistant brands (Cadenza is never "powered by" one)
+Claude
+ChatGPT
+GPT-4
+GPT-5
+Gemini
+Copilot
+Llama
+Mistral
+Phi-4
+phi4
+powered by

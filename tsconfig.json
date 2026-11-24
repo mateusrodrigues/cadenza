@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "types": ["node", "chrome"] },
+  "include": [
+    "packages/shared/src",
+    "packages/providers/src",
+    "packages/engine/src",
+    "evals",
+    "scripts",
+    "e2e",
+    "*.config.ts"
+  ]
+}

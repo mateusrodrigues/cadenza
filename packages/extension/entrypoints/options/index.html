@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cadenza settings</title>
+    <meta name="manifest.open_in_tab" content="true" />
+    <link rel="stylesheet" href="../../lib/ui.css" />
+  </head>
+  <body class="options">
+    <main>
+      <h1>Cadenza settings</h1>
+
+      <section>
+        <h2>Provider</h2>
+        <p class="muted">
+          Cadenza sends the text you write to the provider you choose here, or to a model on
+          this computer. Your API key is stored only in this browser.
+        </p>
+        <form id="provider-form">
+          <label>Provider <select id="preset"></select></label>
+          <label>Endpoint URL <input id="base-url" type="url" placeholder="http://localhost:11434/v1" /></label>
+          <label>API key <input id="api-key" type="password" autocomplete="off" placeholder="Not needed for most local servers" /></label>
+          <label>
+            Model
+            <span class="inline">
+              <select id="model"></select>
+              <button id="load-models" type="button">Load models</button>
+            </span>
+          </label>
+          <label class="check"><input id="explanations" type="checkbox" /> Explain each suggestion (slower on local models)</label>
+          <div class="actions">
+            <button type="submit" class="primary">Save</button>
+            <button id="test" type="button">Test connection</button>
+          </div>
+          <p id="message" role="status"></p>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
