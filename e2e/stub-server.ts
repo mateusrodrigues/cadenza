@@ -42,6 +42,7 @@ export async function startStubServer(port: number): Promise<StubServer> {
         return;
       }
       const request = JSON.parse(body || '{}') as {
+        model?: string;
         messages?: { role: string; content: string }[];
       };
       const user = request.messages?.find((m) => m.role === 'user')?.content ?? '{}';
@@ -62,22 +63,26 @@ export async function startStubServer(port: number): Promise<StubServer> {
             explanation: null,
           })),
       );
-      res.end(
-        JSON.stringify({
-          id: 'c',
-          object: 'chat.completion',
-          created: 0,
-          model: 'stub-model',
-          choices: [
-            {
-              index: 0,
-              finish_reason: 'stop',
-              message: { role: 'assistant', content: JSON.stringify({ suggestions }) },
-            },
-          ],
-          usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
-        }),
-      );
+      // "slow-model" answers after 4 s, like a local model on a CPU.
+      const delay = request.model === 'slow-model' ? 4000 : 0;
+      const reply = () =>
+        res.end(
+          JSON.stringify({
+            id: 'c',
+            object: 'chat.completion',
+            created: 0,
+            model: 'stub-model',
+            choices: [
+              {
+                index: 0,
+                finish_reason: 'stop',
+                message: { role: 'assistant', content: JSON.stringify({ suggestions }) },
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+          }),
+        );
+      setTimeout(reply, delay);
     });
   });
   await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));

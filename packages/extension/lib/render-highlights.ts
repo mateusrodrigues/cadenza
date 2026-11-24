@@ -19,7 +19,7 @@ export class HighlightRenderer implements Renderer {
     private readonly root: HTMLElement,
     private readonly onCount: (n: number) => void = () => {},
   ) {
-    ensureStyle();
+    ensureStyle(root.getRootNode());
   }
 
   render(suggestions: Suggestion[], map: TextMap = buildTextMap(this.root)): void {
@@ -30,20 +30,6 @@ export class HighlightRenderer implements Renderer {
       if (!range) continue;
       this.ranges.set(range, s);
       highlightFor(s.category).add(range);
-    }
-    this.onCount(this.ranges.size);
-  }
-
-  /**
-   * Live Ranges move with DOM edits, so most underlines follow the text automatically. Drop
-   * any whose text no longer matches the suggestion.
-   */
-  revalidate(): void {
-    for (const [range, s] of this.ranges) {
-      if (range.toString() !== s.original) {
-        highlightFor(s.category).delete(range);
-        this.ranges.delete(range);
-      }
     }
     this.onCount(this.ranges.size);
   }
@@ -79,13 +65,19 @@ function highlightFor(c: Category): Highlight {
   return h;
 }
 
-function ensureStyle(): void {
-  if (document.getElementById(STYLE_ID)) return;
+/**
+ * `::highlight()` rules only apply in the tree that holds them, so an editor inside a shadow
+ * root needs its own copy.
+ */
+function ensureStyle(root: Node): void {
+  const target = root instanceof ShadowRoot ? root : document;
+  if (target.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = CATEGORY_IDS.map((id) => {
     const c = CATEGORIES[id];
     return `::highlight(${highlightName(id)}) { text-decoration: underline ${c.lineStyle} ${c.color}; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }`;
   }).join('\n');
-  (document.head ?? document.documentElement).append(style);
+  if (target instanceof ShadowRoot) target.append(style);
+  else (document.head ?? document.documentElement).append(style);
 }

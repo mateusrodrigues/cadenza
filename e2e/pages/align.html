@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cadenza alignment page</title>
+    <style>
+      body { margin: 20px; font: 16px sans-serif; height: 2400px; }
+      .mono { font: 20px/30px monospace; padding: 10px; border: 2px solid #999; margin: 0 0 24px;
+        display: block; box-sizing: border-box; color: #000; background: #fff; }
+      #mono { width: 520px; height: 140px; resize: both; }
+      #wrapoff { width: 260px; height: 80px; }
+      #narrow { width: 200px; }
+      #scroller { height: 120px; width: 560px; overflow: auto; border: 1px solid #000; margin-bottom: 24px; }
+      #scroller .spacer { height: 80px; }
+      #clipped { width: 520px; height: 140px; }
+    </style>
+  </head>
+  <body>
+    <textarea id="mono" class="mono"></textarea>
+    <textarea id="wrapoff" class="mono" wrap="off"></textarea>
+    <input id="narrow" class="mono" type="text" />
+    <div id="scroller">
+      <div class="spacer"></div>
+      <textarea id="clipped" class="mono"></textarea>
+      <div class="spacer"></div>
+    </div>
+    <div id="shadow-host"></div>
+    <div id="rerender" class="mono" contenteditable="true"><p>Start here.</p></div>
+    <script>
+      // An editor inside an open shadow root.
+      const root = document.getElementById('shadow-host').attachShadow({ mode: 'open' });
+      root.innerHTML =
+        '<div id="shadow-editor" contenteditable="true" style="font: 20px/30px monospace; padding: 10px; border: 2px solid #999">Shadow text.</div>';
+      // An editor that, like many frameworks, replaces its text nodes on every edit.
+      const rerender = document.getElementById('rerender');
+      rerender.addEventListener('input', () => {
+        const sel = getSelection();
+        const p = rerender.querySelector('p');
+        if (!p?.firstChild || p.childNodes.length !== 1) return;
+        const node = p.firstChild;
+        const caret = sel.focusNode === node ? sel.focusOffset : null;
+        const fresh = document.createTextNode(node.data);
+        p.replaceChild(fresh, node);
+        if (caret !== null) sel.collapse(fresh, caret);
+      });
+    </script>
+  </body>
+</html>

@@ -305,11 +305,21 @@ local model were measured (no other keys here).
 - **Exit:** on the recommended hosted models, correctness precision ≥ 0.85 and ≤ 1 false
   positive per 500 words of clean text; local models measured and documented.
 
-### Phase 4 — Underlines (week 4)
+### Phase 4 — Underlines (week 4) — ✅ done
+
+Done: underlines are mapped through each edit (they follow the text while typing, and a result
+that arrives after more typing is moved onto the current text instead of dropped); the overlay
+is clipped to scrolled containers, hidden with its field, and follows reflows; highlights
+render inside shadow roots and survive editors that replace their text nodes. Pixel-level
+alignment tests in `e2e/alignment.spec.ts` check typing, field/page/container scrolling,
+resizing, sideways-scrolled inputs and `wrap="off"` against an independent reference.
+Not covered: real sites (Gmail, GitHub…) — Phase 5's site matrix; very large contenteditable
+documents re-walk the DOM on every edit (coalesced per frame), which may need an incremental
+text map.
 
 - Textarea/input mirror overlay; contenteditable via Highlight API.
 - Paragraph diffing, debounce, offset mapping during edits, scroll/resize tracking.
-- **Exit:** underlines stay aligned while typing, scrolling and resizing on the test pages.
+- **Exit:** underlines stay aligned while typing, scrolling and resizing on the test pages. Met.
 
 ### Phase 5 — Cards and applying changes (week 5)
 

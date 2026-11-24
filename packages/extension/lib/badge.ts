@@ -46,6 +46,10 @@ export class FieldBadge {
     this.set({ kind: 'idle' });
   }
 
+  get kind(): BadgeState['kind'] {
+    return (this.host.dataset.state ?? 'idle') as BadgeState['kind'];
+  }
+
   set(state: BadgeState): void {
     this.host.dataset.state = state.kind;
     // Hoverable only when there is an error to explain; otherwise never intercept clicks.

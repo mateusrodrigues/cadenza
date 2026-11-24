@@ -2,12 +2,13 @@ import { splitParagraphs } from '@cadenza/engine/paragraphs';
 import type { Paragraph, Suggestion } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { FieldBadge } from './badge';
+import { mapThroughEdit } from './edit-map';
 import { type FieldElement, isTextControl } from './fields';
 import type { CheckMessage, CheckResponse, ForgetMessage } from './messages';
 import { HighlightRenderer } from './render-highlights';
 import { OverlayRenderer } from './render-overlay';
 import type { Renderer } from './renderer';
-import { buildTextMap, offsetOf } from './text-map';
+import { buildTextMap, offsetOf, type TextMap } from './text-map';
 
 const DEBOUNCE_MS = 700;
 const SLOW_DEBOUNCE_MS = 1500;
@@ -27,8 +28,18 @@ export class FieldSession {
   private settledText: string | null = null;
   /** Set from worker responses: the active provider is slow, so wait longer after typing. */
   private slow = false;
+  /** What is drawn, and the text it was drawn for; edits map it forward (see edit-map). */
+  private drawn: Suggestion[] = [];
+  private drawnText = '';
+  private inputFrame = 0;
   private readonly onInput = () => {
-    this.renderer.revalidate();
+    // Coalesce bursts of input events (paste, autocorrect) into one update per frame.
+    if (!this.inputFrame) {
+      this.inputFrame = requestAnimationFrame(() => {
+        this.inputFrame = 0;
+        this.followEdit();
+      });
+    }
     this.schedule();
   };
   private readonly onBlur = () => this.schedule(0);
@@ -43,8 +54,18 @@ export class FieldSession {
     this.schedule(0);
   }
 
-  private readText(): string {
-    return isTextControl(this.field) ? this.field.value : buildTextMap(this.field).text;
+  private readText(): { text: string; map?: TextMap } {
+    if (isTextControl(this.field)) return { text: this.field.value };
+    const map = buildTextMap(this.field);
+    return { text: map.text, map };
+  }
+
+  /** Keep underlines on their words while the user types, until the next result arrives. */
+  private followEdit(): void {
+    const { text, map } = this.readText();
+    if (text === this.drawnText) return;
+    this.draw(mapThroughEdit(this.drawn, this.drawnText, text), text, map);
+    if (this.badge.kind === 'done') this.badge.set({ kind: 'done', suggestions: this.drawn });
   }
 
   /** Offset of the caret in the field text, if the caret is inside the field. */
@@ -63,7 +84,7 @@ export class FieldSession {
   }
 
   private async check(): Promise<void> {
-    const text = this.readText();
+    const { text } = this.readText();
     if (text === this.settledText) return;
     const seq = ++this.requestSeq;
     const paragraphs = splitParagraphs(text);
@@ -85,10 +106,6 @@ export class FieldSession {
     }
     // A newer check superseded this one; it owns the badge now.
     if (seq !== this.requestSeq) return;
-    if (this.readText() !== text) {
-      this.badge.set({ kind: 'idle' });
-      return;
-    }
     if (!response.ok) {
       this.badge.set(
         response.cancelled ? { kind: 'idle' } : { kind: 'error', message: response.error.message },
@@ -96,23 +113,31 @@ export class FieldSession {
       return;
     }
     this.slow = response.slow;
-    this.draw(response.suggestions);
+    // The user may have kept typing while the model worked (a minute on a local model): move
+    // the results onto the current text rather than throwing them away. The edit already
+    // scheduled the next check.
+    const now = this.readText();
+    const edited = now.text !== text;
+    this.draw(mapThroughEdit(response.suggestions, text, now.text), now.text, now.map);
     if (response.pending > 0) {
       // Slow mode checks one paragraph per request; continue with the rest.
       this.badge.set({ kind: 'checking' });
-      this.schedule(0);
+      if (!edited) this.schedule(0);
     } else {
-      this.settledText = text;
-      this.badge.set({ kind: 'done', suggestions: response.suggestions });
+      if (!edited) this.settledText = text;
+      this.badge.set({ kind: 'done', suggestions: this.drawn });
     }
   }
 
-  private draw(suggestions: Suggestion[]): void {
-    this.renderer.render(suggestions);
+  private draw(suggestions: Suggestion[], text: string, map?: TextMap): void {
+    this.drawn = suggestions;
+    this.drawnText = text;
+    this.renderer.render(suggestions, map);
   }
 
   destroy(): void {
     clearTimeout(this.timer);
+    cancelAnimationFrame(this.inputFrame);
     this.field.removeEventListener('input', this.onInput);
     this.field.removeEventListener('blur', this.onBlur);
     this.renderer.destroy();
