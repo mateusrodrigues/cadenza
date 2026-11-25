@@ -21,7 +21,7 @@ import {
   newProvider,
   type SavedProvider,
   type Settings,
-  saveSettings,
+  updateSettings,
 } from '../../lib/settings';
 import { $ } from './dom';
 import { renderDictionary, renderIgnored, renderSites, wireDictionary, wireSites } from './lists';
@@ -123,10 +123,7 @@ let fixAction: (() => Promise<void>) | null = null;
  * card, another tab) isn't overwritten by this page's older copy.
  */
 async function update(change: (s: Settings) => void): Promise<void> {
-  const fresh = await loadSettings();
-  change(fresh);
-  await saveSettings(fresh);
-  settings = fresh;
+  settings = await updateSettings(change);
 }
 
 function send<T>(message: PageMessage): Promise<T> {

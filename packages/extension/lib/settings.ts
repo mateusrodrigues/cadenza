@@ -162,6 +162,25 @@ export async function saveSettings(settings: Settings): Promise<void> {
   });
 }
 
+/** Changes from this page, in order; see `updateSettings`. */
+let pending: Promise<unknown> = Promise.resolve();
+
+/**
+ * Change one part of the settings, starting from what is stored now. Changes made on the same
+ * page run one after another, so two quick changes (a formality pill, then the audience) can't
+ * both start from the old settings and lose the first.
+ */
+export function updateSettings(change: (s: Settings) => Settings | void): Promise<Settings> {
+  const run = pending.then(async () => {
+    const s = await loadSettings();
+    const next = change(s) ?? s;
+    await saveSettings(next);
+    return next;
+  });
+  pending = run.catch(() => {});
+  return run;
+}
+
 /** Bring stored settings of any earlier shape up to the current version. */
 export function migrate(stored: Record<string, unknown> | undefined): Settings {
   if (!stored) return structuredClone(DEFAULT_SETTINGS);

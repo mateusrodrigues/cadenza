@@ -8,12 +8,15 @@ export interface StubServer {
   origins: (string | undefined)[];
   /** Authorization headers received. */
   auth: (string | undefined)[];
+  /** The text of each paragraph sent to be checked, in the order the requests arrived. */
+  checked: string[];
   close(): Promise<void>;
 }
 
 export async function startStubServer(port: number): Promise<StubServer> {
   const origins: (string | undefined)[] = [];
   const auth: (string | undefined)[] = [];
+  const checked: string[] = [];
   const server: Server = createServer((req, res) => {
     const origin = req.headers.origin;
     const cors = {
@@ -63,6 +66,7 @@ export async function startStubServer(port: number): Promise<StubServer> {
       const { paragraphs = [] } = JSON.parse(user) as {
         paragraphs?: { pid: string; text: string }[];
       };
+      checked.push(...paragraphs.map((p) => p.text));
       const fixes: Record<string, string> = { tomorow: 'tomorrow', teh: 'the' };
       const suggestions = paragraphs.flatMap((p) =>
         Object.entries(fixes)
@@ -103,6 +107,7 @@ export async function startStubServer(port: number): Promise<StubServer> {
   return {
     origins,
     auth,
+    checked,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }

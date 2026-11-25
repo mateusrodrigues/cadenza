@@ -6,7 +6,7 @@ import {
   isHosted,
   loadSettings,
   type Settings,
-  saveSettings,
+  updateSettings,
 } from '../../lib/settings';
 import { hostOf, siteIsOff, turnSiteOff, turnSiteOn, unsupportedEditor } from '../../lib/sites';
 import { loadUsage, today } from '../../lib/usage';
@@ -84,10 +84,9 @@ async function init() {
   await render();
 
   $<HTMLInputElement>('enabled').addEventListener('change', async (e) => {
-    const settings = await loadSettings();
     const enabled = (e.target as HTMLInputElement).checked;
     $('enabled-label').textContent = enabled ? 'On' : 'Off';
-    await saveSettings({ ...settings, enabled });
+    await updateSettings((s) => ({ ...s, enabled }));
   });
 
   const url = await currentURL();
@@ -104,16 +103,17 @@ async function init() {
     $('site-row').hidden = false;
     const toggle = $<HTMLInputElement>('site-off');
     toggle.addEventListener('change', async () => {
-      const s = await loadSettings();
       // Turning a site back on also clears a parent entry that covered it.
-      await saveSettings(toggle.checked ? turnSiteOff(s, site, today()) : turnSiteOn(s, site));
+      await updateSettings((s) =>
+        toggle.checked ? turnSiteOff(s, site, today()) : turnSiteOn(s, site),
+      );
       showSite(site, toggle.checked);
     });
   }
 
   $<HTMLSelectElement>('provider').addEventListener('change', async (e) => {
-    const s = await loadSettings();
-    await saveSettings({ ...s, activeProviderId: (e.target as HTMLSelectElement).value });
+    const activeProviderId = (e.target as HTMLSelectElement).value;
+    await updateSettings((s) => ({ ...s, activeProviderId }));
     await render();
   });
 

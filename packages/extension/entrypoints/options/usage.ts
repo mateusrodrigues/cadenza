@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings } from '../../lib/settings';
+import { loadSettings, updateSettings } from '../../lib/settings';
 import { loadUsage, today } from '../../lib/usage';
 import { $ } from './dom';
 
@@ -59,8 +59,7 @@ export async function wireLimit() {
     limit.disabled = !on.checked;
     const n = Math.floor(Number(limit.value));
     if (!(n >= 1)) return;
-    const s = await loadSettings();
-    await saveSettings({ ...s, dailyLimit: on.checked ? n : null });
+    await updateSettings((s) => ({ ...s, dailyLimit: on.checked ? n : null }));
   };
   on.addEventListener('change', () => void save());
   limit.addEventListener('change', () => void save());

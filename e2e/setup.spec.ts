@@ -130,8 +130,17 @@ test('goals and the daily limit are saved; usage lists checks', async ({
 
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html#writing`);
-  await options.getByRole('radio', { name: 'Formal' }).check();
-  await options.getByLabel('Audience').selectOption('expert');
+  // Both at once, as two quick clicks would be: neither change may undo the other.
+  await options.evaluate(() => {
+    const formal = document.querySelector<HTMLInputElement>(
+      'input[name="formality"][value="formal"]',
+    );
+    const audience = document.querySelector<HTMLSelectElement>('#audience');
+    if (!formal || !audience) throw new Error('Writing controls not found');
+    formal.click();
+    audience.value = 'expert';
+    audience.dispatchEvent(new Event('change'));
+  });
   await options.getByRole('link', { name: 'Usage' }).click();
   // The limit field is off until the switch is on.
   await expect(options.getByLabel('Checks per day')).toBeDisabled();

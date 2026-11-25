@@ -2,7 +2,7 @@ import { CATEGORIES } from '@cadenza/shared';
 import { addWord, loadDictionary, removeWord, validWord } from '../../lib/dictionary';
 import { icon, lineSample } from '../../lib/icons';
 import { loadIgnored, removeIgnored } from '../../lib/ignored';
-import { loadSettings, saveSettings } from '../../lib/settings';
+import { loadSettings, updateSettings } from '../../lib/settings';
 import { normalizeSite, turnSiteOff, turnSiteOn } from '../../lib/sites';
 import { today } from '../../lib/usage';
 import { $, button, row, shortDay } from './dom';
@@ -62,7 +62,7 @@ export async function renderSites() {
         button(
           'Turn on',
           async () => {
-            await saveSettings(turnSiteOn(await loadSettings(), site, true));
+            await updateSettings((s) => turnSiteOn(s, site, true));
           },
           `Turn on for ${site}`,
         ),
@@ -82,7 +82,7 @@ export function wireSites() {
       return;
     }
     message.textContent = '';
-    await saveSettings(turnSiteOff(await loadSettings(), site, today()));
+    await updateSettings((s) => turnSiteOff(s, site, today()));
     input.value = '';
   });
 }

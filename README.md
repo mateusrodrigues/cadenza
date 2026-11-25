@@ -9,6 +9,34 @@ Writing suggestions in any text field on the web. Cadenza underlines what it wou
 color-coded by kind (correctness, clarity, style, tone), using the AI provider you choose with
 your own API key, or a model running on your own computer.
 
+## Install from source
+
+Until Cadenza is in the Chrome Web Store, you can build it yourself and load it into Chrome
+(or another Chromium browser, such as Edge or Brave). You need [Git](https://git-scm.com/) and
+[Node.js](https://nodejs.org/) 22.12 or later.
+
+1. Get the code and build the extension:
+
+   ```bash
+   git clone https://github.com/mateusrodrigues/cadenza.git
+   cd cadenza
+   npm ci
+   npm run build
+   ```
+
+2. Open `chrome://extensions` and turn on **Developer mode** (top right).
+3. Choose **Load unpacked** and select the `packages/extension/.output/chrome-mv3` folder.
+4. A setup page opens. Pick an AI provider and paste your API key, or connect a model running
+   on this computer. Then type in any text field and Cadenza underlines what it would change.
+
+To update, pull the latest code and build again, then select the reload button on
+Cadenza's card in `chrome://extensions`. Your settings, keys and dictionary are kept. Removing
+the extension deletes them.
+
+`npm run zip -w @cadenza/extension` makes the same build as a zip in
+`packages/extension/.output/`, for the store or for copying to another computer (unzip it, then
+load the folder as above).
+
 ## Development
 
 Requires Node 22.12+.
@@ -20,10 +48,9 @@ npm run check        # lint, typecheck, naming guard, unit tests
 npm run test:e2e     # builds, then runs browser tests against the built extension
 ```
 
-Load the extension: open `chrome://extensions`, turn on Developer mode, choose
-**Load unpacked**, and select `packages/extension/.output/chrome-mv3` (run `npm run build`
-first). A new install opens a setup page to connect a provider or a model on this computer;
-test builds (`CADENZA_E2E=1`) start on built-in test rules instead.
+Load the build as in [Install from source](#install-from-source). Test builds
+(`CADENZA_E2E=1`, in `packages/extension/.output-e2e/chrome-mv3`) skip the setup page and start
+on built-in test rules instead.
 
 To run the engine against a local OpenAI-compatible server:
 

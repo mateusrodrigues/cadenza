@@ -306,17 +306,18 @@ test('check results survive the service worker being stopped', async ({ context,
     });
   };
   await typeText();
-  // The underline can come from a check of the text typed so far, if typing paused; let any
-  // check still waiting on the 700 ms typing pause go out before counting.
+  // Let any check still waiting on the 700 ms typing pause go out before taking note.
   await page.waitForTimeout(1000);
   await expect(page.locator('cadenza-badge')).toHaveAttribute('data-state', 'done');
-  const posts = () => stub.origins.filter((o) => o?.startsWith('POST')).length;
-  const before = posts();
+  expect(stub.checked).toContain('See you tomorow.');
+  const sentBefore = stub.checked.length;
 
   const cdp = await context.newCDPSession(page);
   await cdp.send('ServiceWorker.enable');
   await cdp.send('ServiceWorker.stopAllWorkers');
   await page.reload();
   await typeText();
-  expect(posts()).toBe(before);
+  // The sentence's result comes from the session cache, not the server. (A check of the text
+  // typed so far, if typing paused, may still go out; it's different text.)
+  expect(stub.checked.slice(sentBefore)).not.toContain('See you tomorow.');
 });
