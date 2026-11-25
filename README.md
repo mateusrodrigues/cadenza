@@ -1,4 +1,9 @@
-# Cadenza
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
+    <img src="docs/images/banner-light.svg" alt="Cadenza, a quiet writing assistant" width="100%">
+  </picture>
+</h1>
 
 Writing suggestions in any text field on the web. Cadenza underlines what it would change,
 color-coded by kind (correctness, clarity, style, tone), using the AI provider you choose with
