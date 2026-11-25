@@ -420,7 +420,35 @@ Original scope:
   local model).
 - Accessibility: keyboard navigation of cards, screen-reader labels, non-color cues.
 
-### Phase 8 — Release
+### Phase 8 — Testing
+
+The automated suites cover what a test browser can reach. This phase is the hands-on pass
+that they can't do: a person in a real Chrome profile, with real sign-ins, keys and
+keyboards. The checklist is `docs/testing.md`; results and bugs are recorded there.
+
+- **Signed-in site matrix:** Gmail (subject and body), Outlook web, GitHub, Slack, LinkedIn,
+  X, Reddit, Notion, Jira, Google Forms. On each one, an underline appears, Accept changes
+  the text, the site's own state follows (preview, send, draft saved), and undo works.
+- **Install and setup:** time a fresh profile from install to first underline (under 2 minutes
+  with a hosted key, under 5 with Ollama already installed). Try both onboarding paths, the
+  popup's per-site switch, and the passphrase lock and unlock across a browser restart.
+- **Providers with real keys:** every provider you have a key for, plus a local model. Run
+  Test connection, check a field, then confirm that a wrong key and a stopped server show
+  clear errors.
+- **Keyboard and screen reader:** press the real shortcut, Tab and Escape, and remap the
+  shortcut in Chrome. Then run one screen reader through a card and the panel (Orca, NVDA or
+  VoiceOver).
+- **Display:** dark mode, page zoom 80–200%, forced colors (high contrast), a right-to-left
+  page, and a field inside an iframe.
+- **Updates:** install the previous build, set it up, update to the new build in place, then
+  confirm settings, keys and the dictionary survive.
+- **Daily use:** use Cadenza for normal writing for a week. Note false positives, missed
+  mistakes, slow checks and anything confusing.
+- Each bug found gets a fix and, where a test browser can reach it, an e2e test.
+- **Exit:** the checklist is complete, with no open bug that loses text, applies a wrong
+  change, leaks text or keys, or breaks typing on a site in the matrix.
+
+### Phase 9 — Release
 
 - Chrome Web Store listing, icons, screenshots, privacy policy.
 - Permission justifications for review (content scripts on all sites, vendor API hosts,
