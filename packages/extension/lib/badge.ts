@@ -18,6 +18,7 @@ export class FieldBadge {
   private readonly host: HTMLElement;
   private readonly dot: HTMLDivElement;
   private readonly untrack: () => void;
+  private signature = '';
 
   constructor(
     private readonly field: HTMLElement,
@@ -59,6 +60,15 @@ export class FieldBadge {
   }
 
   set(state: BadgeState): void {
+    // Called on every frame while typing: skip when nothing shown would change.
+    const signature =
+      state.kind === 'done'
+        ? `done:${state.suggestions.length}:${state.suggestions.length ? topCategory(state.suggestions) : ''}`
+        : state.kind === 'error'
+          ? `error:${state.message}`
+          : state.kind;
+    if (signature === this.signature) return;
+    this.signature = signature;
     this.host.dataset.state = state.kind;
     // Clickable only when there's something to show; otherwise never intercept clicks.
     const active =

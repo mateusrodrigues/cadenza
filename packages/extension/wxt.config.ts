@@ -25,5 +25,12 @@ export default defineConfig({
     ...(E2E ? { host_permissions: [`${E2E_STUB_ORIGIN}/*`] } : {}),
     icons: { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' },
     action: { default_title: 'Cadenza' },
+    // Keyboard access to suggestions; people can change the keys in Chrome's shortcut settings.
+    commands: {
+      'open-suggestion': {
+        suggested_key: { default: 'Alt+Shift+Period' },
+        description: 'Show the suggestion at the cursor',
+      },
+    },
   },
 });

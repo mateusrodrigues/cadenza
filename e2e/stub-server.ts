@@ -36,6 +36,19 @@ export async function startStubServer(port: number): Promise<StubServer> {
       body += c;
     });
     req.on('end', () => {
+      if ((JSON.parse(body || '{}') as { model?: string }).model === 'auth-fail') {
+        // Like OpenAI: an auth error that quotes part of the key.
+        res.writeHead(401, { ...cors, 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            error: {
+              message: 'Incorrect API key provided: sk-te****-key.',
+              type: 'invalid_request_error',
+            },
+          }),
+        );
+        return;
+      }
       res.writeHead(200, { ...cors, 'content-type': 'application/json' });
       if (req.url?.endsWith('/models')) {
         res.end(JSON.stringify({ object: 'list', data: [{ id: 'stub-model', object: 'model' }] }));
@@ -45,6 +58,7 @@ export async function startStubServer(port: number): Promise<StubServer> {
         model?: string;
         messages?: { role: string; content: string }[];
       };
+
       const user = request.messages?.find((m) => m.role === 'user')?.content ?? '{}';
       const { paragraphs = [] } = JSON.parse(user) as {
         paragraphs?: { pid: string; text: string }[];

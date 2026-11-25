@@ -49,7 +49,8 @@ export class OverlayRenderer implements Renderer {
   private readonly host: HTMLElement;
   private readonly mirror: HTMLDivElement;
   private readonly untrack: () => void;
-  private spans = new Map<string, { span: HTMLSpanElement; suggestion: Suggestion }>();
+  private spans = new Map<string, { spans: HTMLSpanElement[]; suggestion: Suggestion }>();
+  private lines: { key: string; el: HTMLDivElement }[] = [];
 
   constructor(private readonly field: HTMLTextAreaElement | HTMLInputElement) {
     this.host = document.createElement('cadenza-overlay');
@@ -62,6 +63,8 @@ export class OverlayRenderer implements Renderer {
     style.textContent = `
       .mirror { position: fixed; overflow: hidden; color: transparent; border-style: solid;
         border-color: transparent; background: transparent; margin: 0; }
+      /* Lines are blocks here, but the field indents only its first line. */
+      .mirror > div + div { text-indent: 0; }
       ${Object.values(CATEGORIES)
         .map(
           (c) => `.u-${c.id} { text-decoration: underline ${c.lineStyle} ${c.color};
@@ -77,11 +80,29 @@ export class OverlayRenderer implements Renderer {
     this.untrack = trackPosition(field, () => this.position());
   }
 
+  /**
+   * One block per line of the field's text, so an edit re-lays out only its own line and the
+   * browser reuses the layout of the rest (long documents stay fast to type in). Lines that
+   * didn't change keep their elements.
+   */
   render(suggestions: Suggestion[]): void {
     this.host.dataset.count = String(suggestions.length);
+    const f = this.field;
+    if (f instanceof HTMLInputElement || getComputedStyle(f).whiteSpace === 'pre') {
+      // Fields that scroll sideways keep the text in one flow: Chrome measures a scroll
+      // container's width without its end padding when the text sits in child blocks.
+      this.renderFlat(suggestions);
+    } else {
+      this.renderLines(suggestions);
+    }
+    this.position();
+  }
+
+  private renderFlat(suggestions: Suggestion[]): void {
     const text = this.field.value;
     const frag = document.createDocumentFragment();
     this.spans.clear();
+    this.lines = [];
     let pos = 0;
     for (const s of suggestions) {
       if (s.start < pos || text.slice(s.start, s.end) !== s.original) continue;
@@ -90,13 +111,51 @@ export class OverlayRenderer implements Renderer {
       span.className = `u-${s.category}`;
       span.textContent = text.slice(s.start, s.end);
       frag.append(span);
-      this.spans.set(s.id, { span, suggestion: s });
+      this.spans.set(s.id, { spans: [span], suggestion: s });
       pos = s.end;
     }
     // A trailing newline would otherwise collapse and shift the last line.
-    frag.append(`${text.slice(pos)}​`);
+    frag.append(`${text.slice(pos)}\u200b`);
     this.mirror.replaceChildren(frag);
-    this.position();
+  }
+
+  private renderLines(suggestions: Suggestion[]): void {
+    const lines = layoutLines(this.field.value, suggestions);
+    if (this.lines.length === 0) this.mirror.replaceChildren();
+    const old = this.lines;
+    // Reuse unchanged lines from the start and the end; rebuild the ones in between.
+    let head = 0;
+    while (head < old.length && head < lines.length && old[head]?.key === lines[head]?.key) head++;
+    let tail = 0;
+    while (
+      tail < old.length - head &&
+      tail < lines.length - head &&
+      old[old.length - 1 - tail]?.key === lines[lines.length - 1 - tail]?.key
+    ) {
+      tail++;
+    }
+    const before = old[old.length - tail]?.el ?? null;
+    for (const line of old.slice(head, old.length - tail)) line.el.remove();
+    const fresh = lines
+      .slice(head, lines.length - tail)
+      .map((l) => ({ key: l.key, el: buildLine(l) }));
+    const frag = document.createDocumentFragment();
+    for (const l of fresh) frag.append(l.el);
+    this.mirror.insertBefore(frag, before);
+    this.lines = [...old.slice(0, head), ...fresh, ...old.slice(old.length - tail)];
+
+    this.spans.clear();
+    this.lines.forEach((line, i) => {
+      const spec = lines[i];
+      if (!spec) return;
+      line.el.querySelectorAll('span').forEach((span, j) => {
+        const seg = spec.marks[j];
+        if (!seg) return;
+        const entry = this.spans.get(seg.suggestion.id);
+        if (entry) entry.spans.push(span);
+        else this.spans.set(seg.suggestion.id, { spans: [span], suggestion: seg.suggestion });
+      });
+    });
   }
 
   position(): void {
@@ -139,8 +198,11 @@ export class OverlayRenderer implements Renderer {
     if (this.spans.size === 0) return null;
     this.position();
     const area = visibleBox(this.field);
-    for (const { span, suggestion } of this.spans.values()) {
-      if (visibleRects(span.getClientRects(), area).some((r) => hits(r, x, y))) return suggestion;
+    for (const { spans, suggestion } of this.spans.values()) {
+      if (
+        spans.some((span) => visibleRects(span.getClientRects(), area).some((r) => hits(r, x, y)))
+      )
+        return suggestion;
     }
     return null;
   }
@@ -149,11 +211,66 @@ export class OverlayRenderer implements Renderer {
     const entry = this.spans.get(id);
     if (!entry) return [];
     this.position();
-    return visibleRects(entry.span.getClientRects(), visibleBox(this.field));
+    const rects = entry.spans.flatMap((span) => Array.from(span.getClientRects()));
+    return visibleRects(rects, visibleBox(this.field));
   }
 
   destroy(): void {
     this.untrack();
     this.host.remove();
   }
+}
+
+interface LineSpec {
+  /** Text and marks of the line; equal keys render identically. */
+  key: string;
+  text: string;
+  marks: { start: number; end: number; suggestion: Suggestion }[];
+}
+
+/** Split the text into lines, with each suggestion cut into the lines it covers. */
+export function layoutLines(text: string, suggestions: Suggestion[]): LineSpec[] {
+  const valid: Suggestion[] = [];
+  let pos = 0;
+  for (const s of suggestions) {
+    if (s.start < pos || text.slice(s.start, s.end) !== s.original) continue;
+    valid.push(s);
+    pos = s.end;
+  }
+  const out: LineSpec[] = [];
+  let lineStart = 0;
+  let k = 0;
+  for (const line of text.split('\n')) {
+    const lineEnd = lineStart + line.length;
+    while (k < valid.length && (valid[k] as Suggestion).end <= lineStart) k++;
+    const marks: LineSpec['marks'] = [];
+    for (let j = k; j < valid.length; j++) {
+      const s = valid[j] as Suggestion;
+      if (s.start >= lineEnd) break;
+      const start = Math.max(s.start, lineStart) - lineStart;
+      const end = Math.min(s.end, lineEnd) - lineStart;
+      if (end > start) marks.push({ start, end, suggestion: s });
+    }
+    const key = `${line}\u0000${marks.map((m) => `${m.start}:${m.end}:${m.suggestion.category}:${m.suggestion.id}`).join(',')}`;
+    out.push({ key, text: line, marks });
+    lineStart = lineEnd + 1;
+  }
+  return out;
+}
+
+function buildLine(line: LineSpec): HTMLDivElement {
+  const div = document.createElement('div');
+  let pos = 0;
+  for (const m of line.marks) {
+    if (m.start > pos) div.append(line.text.slice(pos, m.start));
+    const span = document.createElement('span');
+    span.className = `u-${m.suggestion.category}`;
+    span.textContent = line.text.slice(m.start, m.end);
+    div.append(span);
+    pos = m.end;
+  }
+  if (pos < line.text.length) div.append(line.text.slice(pos));
+  // An empty line still takes a line's height, as it does in the field.
+  if (line.text === '') div.append(document.createElement('br'));
+  return div;
 }

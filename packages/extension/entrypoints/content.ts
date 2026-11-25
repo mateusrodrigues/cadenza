@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { type FieldElement, resolveField } from '../lib/fields';
-import type { RefreshMessage } from '../lib/messages';
+import type { KeyboardMessage, RefreshMessage } from '../lib/messages';
 import { FieldSession } from '../lib/session';
 
 export default defineContentScript({
@@ -29,11 +29,26 @@ export default defineContentScript({
       }
     }, 5000);
 
-    // The worker asks for a recheck when settings change (site turned on, word added…).
+    // The worker asks for a recheck when settings change (site turned on, word added…), and
+    // relays the keyboard shortcut to every frame of the tab; only the focused one acts on it.
     const onMessage = (message: unknown, sender: { id?: string }) => {
       if (sender.id !== browser.runtime.id) return;
-      if ((message as RefreshMessage | null)?.type !== 'cadenza/refresh') return;
-      for (const [field, session] of sessions) if (field.isConnected) session.refresh();
+      const type = (message as RefreshMessage | KeyboardMessage | null)?.type;
+      if (type === 'cadenza/refresh') {
+        for (const [field, session] of sessions) if (field.isConnected) session.refresh();
+      } else if (type === 'cadenza/keyboard' && document.hasFocus()) {
+        // Focus is in a field, or in a card or panel we opened from it.
+        if (document.activeElement?.localName === 'cadenza-ui') {
+          for (const session of sessions.values()) {
+            if (session.hasPopover()) session.openFromKeyboard();
+          }
+          return;
+        }
+        const field = resolveField(deepActiveElement());
+        if (!field) return;
+        watch(field);
+        sessions.get(field)?.openFromKeyboard();
+      }
     };
     browser.runtime.onMessage.addListener(onMessage);
 

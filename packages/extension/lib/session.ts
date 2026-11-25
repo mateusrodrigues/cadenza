@@ -15,7 +15,15 @@ import type {
   ForgetMessage,
   IgnoreMessage,
 } from './messages';
-import { closePopover, openKind, openPopover, repositionPopover, updatePopover } from './popover';
+import { timed } from './perf';
+import {
+  closePopover,
+  focusPopover,
+  openKind,
+  openPopover,
+  repositionPopover,
+  updatePopover,
+} from './popover';
 import { HighlightRenderer } from './render-highlights';
 import { OverlayRenderer } from './render-overlay';
 import type { Renderer } from './renderer';
@@ -61,16 +69,17 @@ export class FieldSession {
   private lastError: string | null = null;
   private panelError: string | null = null;
 
-  private readonly onInput = () => {
-    // Coalesce bursts of input events (paste, autocorrect) into one update per frame.
-    if (!this.inputFrame) {
-      this.inputFrame = requestAnimationFrame(() => {
-        this.inputFrame = 0;
-        this.followEdit();
-      });
-    }
-    this.schedule();
-  };
+  private readonly onInput = () =>
+    timed('input', () => {
+      // Coalesce bursts of input events (paste, autocorrect) into one update per frame.
+      if (!this.inputFrame) {
+        this.inputFrame = requestAnimationFrame(() => {
+          this.inputFrame = 0;
+          timed('frame', () => this.followEdit());
+        });
+      }
+      this.schedule();
+    });
   private readonly onBlur = () => this.schedule(0);
   private readonly onClick = (event: Event) => {
     const e = event as MouseEvent;
@@ -257,6 +266,7 @@ export class FieldSession {
       },
       onClose: () => {
         this.cardFor = null;
+        this.restoreFocus();
       },
     });
   }
@@ -275,8 +285,86 @@ export class FieldSession {
       align: 'end',
       onClose: () => {
         this.panelError = null;
+        this.restoreFocus();
       },
     });
+  }
+
+  // ---- Keyboard ----------------------------------------------------------------------------
+
+  /** Puts focus and the caret back in the field after a popover opened from the keyboard. */
+  private returnFocus: (() => void) | null = null;
+
+  /**
+   * The keyboard shortcut: open the card for the suggestion at or after the caret, or the panel
+   * when there is none (or a card is already open), and move focus into it. Escape or closing
+   * it puts focus back where it was.
+   */
+  openFromKeyboard(): void {
+    const back = this.returnFocus ?? this.saveFocus();
+    // Swapping a card for the panel closes the card; focus moves on to the panel, not back.
+    this.returnFocus = null;
+    const target = openKind(this) === null ? this.suggestionAtCaret() : null;
+    if (target) {
+      const rect = this.renderer.rectsOf(target.id)[0] as DOMRect;
+      this.openCard(target, rect.left + 1, rect.top + rect.height / 2);
+    } else if (openKind(this) !== 'panel') {
+      this.togglePanel();
+    }
+    if (!openKind(this)) return;
+    this.returnFocus = back;
+    focusPopover(this);
+  }
+
+  hasPopover(): boolean {
+    return openKind(this) !== null;
+  }
+
+  /** The first visible suggestion that ends at or after the caret (else the first visible). */
+  private suggestionAtCaret(): Suggestion | null {
+    const visible = this.drawn.filter((s) => this.renderer.rectsOf(s.id).length > 0);
+    const caret = this.caretOffset() ?? 0;
+    return visible.find((s) => s.end >= caret) ?? visible[0] ?? null;
+  }
+
+  private saveFocus(): () => void {
+    const f = this.field;
+    if (isTextControl(f)) {
+      const { selectionStart, selectionEnd, selectionDirection } = f;
+      const value = f.value;
+      return () => {
+        f.focus({ preventScroll: true });
+        if (f.value === value && selectionStart !== null && selectionEnd !== null) {
+          f.setSelectionRange(selectionStart, selectionEnd, selectionDirection ?? undefined);
+        }
+      };
+    }
+    const sel = f.ownerDocument.getSelection();
+    const range =
+      sel && sel.rangeCount > 0 && f.contains(sel.anchorNode)
+        ? sel.getRangeAt(0).cloneRange()
+        : null;
+    return () => {
+      f.focus({ preventScroll: true });
+      if (!range || !f.contains(range.startContainer)) return;
+      const now = f.ownerDocument.getSelection();
+      now?.removeAllRanges();
+      now?.addRange(range);
+    };
+  }
+
+  /** Called when a popover closes: return focus unless the user has moved it elsewhere. */
+  private restoreFocus(): void {
+    const back = this.returnFocus;
+    this.returnFocus = null;
+    if (!back) return;
+    // Focus was in the popover, which is gone now (so it fell to the body). An accept already
+    // focused the field; a click outside is moving focus where the user clicked.
+    const active = this.field.ownerDocument.activeElement;
+    if (active && active !== this.field.ownerDocument.body && active.localName !== 'cadenza-ui') {
+      return;
+    }
+    back();
   }
 
   private refreshPanel(): void {

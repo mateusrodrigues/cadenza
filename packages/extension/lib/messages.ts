@@ -53,6 +53,11 @@ export interface AddWordMessage {
 
 // ---- From the worker to content scripts ---------------------------------------------------
 
+/** The keyboard shortcut was pressed: the focused field shows its suggestion at the cursor. */
+export interface KeyboardMessage {
+  type: 'cadenza/keyboard';
+}
+
 /** Settings changed (site toggle, dictionary, unlock…): check open fields again. */
 export interface RefreshMessage {
   type: 'cadenza/refresh';

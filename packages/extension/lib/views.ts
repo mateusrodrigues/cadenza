@@ -17,8 +17,14 @@ export interface CardActions {
 
 export function buildCard(s: Suggestion, actions: CardActions): HTMLElement {
   const card = h('div', 'card');
-  card.append(chip(s.category, s.subtype), change(s));
-  if (s.explanation) card.append(h('p', 'explanation', s.explanation));
+  const what = change(s);
+  what.id = 'cadenza-change';
+  card.append(chip(s.category, s.subtype), what);
+  if (s.explanation) {
+    const why = h('p', 'explanation', s.explanation);
+    why.id = 'cadenza-explanation';
+    card.append(why);
+  }
   const error = h('p', 'error');
   error.hidden = true;
   const row = h('div', 'actions');
@@ -71,21 +77,30 @@ export function buildPanel(
     const head = h('div', 'group-head');
     head.append(chip(category, null, items.length));
     if (category === 'correctness' && items.length > 1) {
-      head.append(
-        button('Accept all', 'primary', 'accept-all', () => void actions.acceptAll(category)),
+      const all = button(
+        'Accept all',
+        'primary',
+        'accept-all',
+        () => void actions.acceptAll(category),
       );
+      all.setAttribute('aria-label', `Accept all ${items.length} correctness suggestions`);
+      head.append(all);
     }
     group.append(head);
     for (const s of items) {
       const item = h('div', 'item');
       item.dataset.id = s.id;
-      item.append(change(s));
+      // Each item's buttons are read with the change they act on ("Accept, change teh to the").
+      const what = change(s);
+      what.id = `cadenza-item-${s.id}`;
+      item.append(what);
       if (s.explanation) item.append(h('p', 'explanation', s.explanation));
       const row = h('div', 'actions');
-      row.append(
-        button('Accept', 'primary', 'accept', () => void actions.accept(s)),
-        button('Dismiss', '', 'dismiss', () => actions.dismiss(s)),
-      );
+      const accept = button('Accept', 'primary', 'accept', () => void actions.accept(s));
+      const dismiss = button('Dismiss', '', 'dismiss', () => actions.dismiss(s));
+      accept.setAttribute('aria-describedby', what.id);
+      dismiss.setAttribute('aria-describedby', what.id);
+      row.append(accept, dismiss);
       item.append(row);
       group.append(item);
     }
@@ -105,12 +120,25 @@ function chip(category: Category, subtype: string | null, count?: number): HTMLE
 
 function change(s: Suggestion): HTMLElement {
   const p = h('p', 'change');
-  p.append(h('del', '', s.original));
+  // Screen readers get a sentence; the struck-through/arrow layout is for the eye.
+  p.append(
+    h(
+      'span',
+      'sr',
+      s.replacement
+        ? `${CATEGORIES[s.category].label}: change “${s.original}” to “${s.replacement}”.`
+        : `${CATEGORIES[s.category].label}: remove “${s.original}”.`,
+    ),
+  );
+  const visual = h('span', '');
+  visual.setAttribute('aria-hidden', 'true');
+  visual.append(h('del', '', s.original));
   if (s.replacement) {
-    p.append(h('span', 'arrow', '→'), h('ins', '', s.replacement));
+    visual.append(h('span', 'arrow', '→'), h('ins', '', s.replacement));
   } else {
-    p.append(h('span', 'remove', 'Remove'));
+    visual.append(h('span', 'remove', 'Remove'));
   }
+  p.append(visual);
   return p;
 }
 

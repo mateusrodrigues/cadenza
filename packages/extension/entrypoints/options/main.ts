@@ -394,6 +394,18 @@ async function applyLockState() {
   renderList();
 }
 
+/** The keyboard shortcut for suggestions, as the user has it set in Chrome. */
+async function renderShortcut() {
+  const text = document.getElementById('shortcut-text') as HTMLElement;
+  const command = (await browser.commands.getAll()).find((c) => c.name === 'open-suggestion');
+  text.textContent = command?.shortcut
+    ? `Keyboard: press ${command.shortcut} in a text field to open the suggestion at the cursor; Escape closes it.`
+    : 'Keyboard: set a shortcut to open the suggestion at the cursor.';
+  document.getElementById('shortcut-change')?.addEventListener('click', () => {
+    void browser.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
+}
+
 async function init() {
   settings = await loadSettings();
   presetOptions();
@@ -403,7 +415,13 @@ async function init() {
   wireDictionary();
   wireSites();
   await wireLimit();
-  await Promise.all([renderIgnored(), renderDictionary(), renderSites(), renderUsage()]);
+  await Promise.all([
+    renderIgnored(),
+    renderDictionary(),
+    renderSites(),
+    renderUsage(),
+    renderShortcut(),
+  ]);
   browser.storage.local.onChanged.addListener(async (changes) => {
     if (changes.ignored) void renderIgnored();
     if (changes.dictionary) void renderDictionary();

@@ -342,7 +342,7 @@ Manual pass: GitHub works. Gmail worked only in Subject: the message body sets
 or monospace) opt out that way, and Gmail needs a second look. Not covered: LinkedIn and Slack
 still need a manual pass; editors in
 `about:blank`/`srcdoc` iframes (TinyMCE, CKEditor 4) aren't reached yet; the card opens on
-click, not hover; keyboard access to cards is Phase 7.
+click, not hover; keyboard access to cards came in Phase 7.
 
 - Card, Accept/Dismiss, "don't suggest again", undo works via Ctrl+Z.
 - Field badge and panel.
@@ -370,7 +370,46 @@ measured on `claude-haiku-5-5` and phi4 (v4 was too loose, v5 kept; see `docs/ev
 - **Exit:** a fresh profile goes from install to first underline in under 2 minutes with a
   hosted key, under 5 minutes with Ollama already installed.
 
-### Phase 7 — Hardening (week 7)
+### Phase 7 — Hardening (week 7) — ✅ done, except signed-in sites
+
+Done, by part:
+
+- **Privacy.** Review in `docs/privacy.md`. Errors shown in pages carry a fixed message per
+  kind of error, never the provider's own message (which can quote part of a key). Biome's
+  `noConsole` rule fails the build on any log in extension, engine or provider code. The
+  storage audit corrected the claim below: check results hold short flagged spans, in memory
+  only.
+- **Performance.** The content script is 12.7 KB gz, checked on every e2e build by
+  `scripts/check-size.mjs`. Typing costs 2.6 ms p95 per frame in a 60-paragraph textarea
+  (2.3 ms in a rich editor), checked by `e2e/perf.spec.ts`. Two fixes got it there: the
+  textarea mirror now lays out one block per line and reuses unchanged lines, and the badge
+  skips redraws that change nothing.
+- **Accessibility.** A keyboard shortcut (Alt+Shift+., can be changed in Chrome) opens the
+  card for the suggestion at the cursor. Pressed again, it opens the panel. Focus moves into
+  the card, Tab stays inside it, and Escape puts focus and the caret back in the field.
+  Settings show the current shortcut. Screen readers hear each change as a sentence, and
+  panel buttons say which change they act on. Categories already differ by line style, not
+  only color. Tests: `e2e/keyboard.spec.ts`.
+- **Site matrix.** Draft.js, Trix, CKEditor 5 and a CodeMirror "never checked" case join
+  ProseMirror, Lexical and Slate in `e2e/sites.spec.ts` (network, `CADENZA_NET_TESTS=1`). A
+  local block-editor page stands in for Notion (`e2e/blocks.spec.ts`). Two fixes came from
+  this work:
+  - Rich editors that turn spellcheck off (Gmail, CKEditor) are now checked, unless they look
+    like code.
+  - `beforeinput` now carries target ranges. Without them, CKEditor inserted the fix at its own
+    stale caret.
+
+Not covered:
+
+- Signed-in sites (Gmail, Outlook, Slack, LinkedIn, X, Reddit, Notion, Jira, Google Forms)
+  need a person.
+- Quill's public demos don't take focus under automation.
+- In Trix, one undo removes an accepted fix together with the typing just before it. That is
+  Trix's own undo grouping.
+- Browser-level shortcuts can't be pressed from tests, so the tests send the same message the
+  shortcut sends.
+
+Original scope:
 
 - Site matrix: Gmail, Outlook web, GitHub, Slack web, LinkedIn, X, Reddit, Notion, Jira,
   Google Forms, plain `<textarea>` pages. Playwright e2e against the mock provider.

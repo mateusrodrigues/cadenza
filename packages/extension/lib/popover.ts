@@ -1,7 +1,8 @@
 /**
  * The floating surface for the suggestion card and the field panel. One per document, in a
  * closed shadow root so pages can neither style nor read it; one popover is open at a time.
- * It never takes focus from the field the user is writing in.
+ * Mouse use never takes focus from the field the user is writing in; keyboard use moves focus
+ * into it (see focusPopover) and the owner puts it back when it closes.
  */
 
 export type PopoverKind = 'card' | 'panel';
@@ -33,6 +34,14 @@ export function openPopover(options: PopoverOptions): void {
   current = options;
   const el = ensureBox();
   el.dataset.kind = options.kind;
+  el.setAttribute(
+    'aria-label',
+    options.kind === 'card' ? 'Cadenza suggestion' : 'Cadenza suggestions',
+  );
+  // The card's change and explanation are read along with whichever button gets focus.
+  if (options.kind === 'card')
+    el.setAttribute('aria-describedby', 'cadenza-change cadenza-explanation');
+  else el.removeAttribute('aria-describedby');
   el.replaceChildren(options.content);
   if (!host?.isConnected) document.documentElement.append(host as HTMLElement);
   listen(true);
@@ -59,6 +68,16 @@ export function closePopover(owner?: object): void {
   closing.onClose();
 }
 
+/** Move keyboard focus into the open popover: its main action, or its first button. */
+export function focusPopover(owner: object): void {
+  if (current?.owner !== owner || !box) return;
+  const target =
+    box.querySelector<HTMLButtonElement>(
+      'button[data-action="accept-all"], button[data-action="accept"]',
+    ) ?? box.querySelector<HTMLButtonElement>('button');
+  target?.focus({ preventScroll: true });
+}
+
 export function openKind(owner: object): PopoverKind | null {
   return current?.owner === owner ? current.kind : null;
 }
@@ -82,6 +101,22 @@ function ensureBox(): HTMLDivElement {
   box.setAttribute('aria-label', 'Cadenza');
   // Keep focus (and the caret) in the field while the user clicks our buttons.
   box.addEventListener('mousedown', (e) => e.preventDefault());
+  // Tab cycles through the popover's buttons instead of leaving for the page.
+  box.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || !box || !root) return;
+    const buttons = Array.from(box.querySelectorAll<HTMLButtonElement>('button'));
+    const first = buttons[0];
+    const last = buttons.at(-1);
+    const active = root.activeElement;
+    if (!first || !last) return;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
   root.append(style, box);
   return box;
 }
@@ -136,6 +171,8 @@ function listen(on: boolean): void {
 
 const STYLE = `
   :host { all: initial; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+    white-space: nowrap; }
   .popover {
     --bg: #ffffff; --fg: #1b1d29; --muted: #6b6f80; --border: #dfe1e8; --hover: #f2f3f7;
     --accent: #242942; --accent-fg: #ffffff; --del: #b4232a; --ins: #18794e;

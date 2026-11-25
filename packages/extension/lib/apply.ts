@@ -82,12 +82,21 @@ async function applyOneToEditable(root: HTMLElement, edit: Edit): Promise<boolea
   const original = normalize(map.text);
   // Editors that own their model (ProseMirror, Lexical, Slate…) apply beforeinput themselves
   // and cancel it. execCommand doesn't fire beforeinput, so offer them the edit first.
+  // Editors that keep their own selection model (CKEditor) act on the event's target ranges,
+  // not on the DOM selection, which they only pick up on the next selectionchange.
+  const target = new StaticRange({
+    startContainer: range.startContainer,
+    startOffset: range.startOffset,
+    endContainer: range.endContainer,
+    endOffset: range.endOffset,
+  });
   const event = new InputEvent('beforeinput', {
     bubbles: true,
     cancelable: true,
     composed: true,
     inputType: replacement ? 'insertText' : 'deleteContentBackward',
     data: replacement || null,
+    targetRanges: [target],
   });
   (range.startContainer.parentElement ?? root).dispatchEvent(event);
   if (event.defaultPrevented) {

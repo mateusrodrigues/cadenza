@@ -24,6 +24,7 @@ import type {
   CheckMessage,
   CheckResponse,
   ContentMessage,
+  KeyboardMessage,
   ListModelsResponse,
   PageMessage,
   RefreshMessage,
@@ -74,6 +75,13 @@ export default defineBackground(() => {
   });
   browser.storage.session.onChanged.addListener((changes) => {
     if (changes.unlockKey) refreshTabs();
+  });
+
+  // The keyboard shortcut goes to the active tab; the frame holding the focused field answers.
+  browser.commands.onCommand.addListener((command, tab) => {
+    if (command !== 'open-suggestion' || tab?.id === undefined) return;
+    const message: KeyboardMessage = { type: 'cadenza/keyboard' };
+    browser.tabs.sendMessage(tab.id, message).catch(() => {});
   });
 
   browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
@@ -270,8 +278,32 @@ function toWorkerError(err: unknown): WorkerError {
   return { kind: 'unknown', message: err instanceof Error ? err.message : String(err) };
 }
 
+/**
+ * Errors go to content scripts, and the badge shows them in the page's DOM. Provider messages
+ * can echo request details (some quote part of the API key on auth errors), so the page only
+ * ever gets a fixed message for the kind of error; settings shows the provider's own words.
+ */
 function fail(error: WorkerError): CheckResponse {
-  return { ok: false, error, cancelled: error.kind === 'cancelled' };
+  const safe: WorkerError = { kind: error.kind, message: pageMessage(error), status: error.status };
+  return { ok: false, error: safe, cancelled: error.kind === 'cancelled' };
+}
+
+const PAGE_MESSAGES: Record<string, string> = {
+  auth: 'The API key was rejected. Check it in Cadenza settings.',
+  rate_limited: 'The provider is limiting requests. Cadenza will try again.',
+  context_too_long: 'This text is too long for the model.',
+  bad_output: 'The model’s reply couldn’t be used.',
+  refused: 'The model declined to check this text.',
+  not_found: 'The model or endpoint was not found. Check Cadenza settings.',
+  network: 'Couldn’t reach the provider.',
+  unavailable: 'The provider is having problems. Try again later.',
+  cancelled: 'Cancelled.',
+};
+
+function pageMessage(error: WorkerError): string {
+  // Messages Cadenza wrote itself (config, locked, limit) are safe to pass on.
+  if (['config', 'locked', 'limit'].includes(error.kind)) return error.message;
+  return PAGE_MESSAGES[error.kind] ?? 'Couldn’t check this text. See Cadenza settings.';
 }
 
 /** Settings saved before keys moved to IndexedDB still hold them in `storage.local`. */

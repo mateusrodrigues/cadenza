@@ -227,6 +227,54 @@ test('passphrase: keys are encrypted, locked keys stop checks, unlocking resumes
     });
 });
 
+test('errors shown in the page never quote the provider (keys can appear in them)', async ({
+  context,
+  extensionId,
+  worker,
+}) => {
+  await worker.evaluate(async (base) => {
+    await chrome.storage.local.set({
+      settings: {
+        version: 2,
+        enabled: true,
+        providers: [
+          {
+            id: 'x',
+            name: 'Stub',
+            presetId: 'custom',
+            kind: 'openai-compatible',
+            baseURL: base,
+            apiKey: null,
+            model: 'auth-fail',
+            explanations: false,
+            slowMode: false,
+          },
+        ],
+        activeProviderId: 'x',
+      },
+    });
+  }, `${STUB}/v1`);
+  await putSecret(worker, 'apiKeys', { x: 'sk-test-secret-key' });
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.evaluate(
+    (origin) => chrome.runtime.sendMessage({ type: 'cadenza/allow-origin', origin }),
+    STUB,
+  );
+
+  const page = await context.newPage();
+  await open(page);
+  await page.locator('#plain').click();
+  await page.keyboard.type('Read teh book.');
+  const badge = page.locator('cadenza-badge');
+  await expect(badge).toHaveAttribute('data-state', 'error');
+  await expect(badge).toHaveAttribute(
+    'title',
+    'Cadenza: The API key was rejected. Check it in Cadenza settings.',
+  );
+  expect(await page.content()).not.toContain('sk-te');
+});
+
 interface StoredSettings {
   providers: { id: string; baseURL: string; model: string; slowMode: boolean }[];
   activeProviderId: string;

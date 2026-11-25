@@ -15,10 +15,11 @@
     "format": "biome check --write .",
     "typecheck": "tsc -p tsconfig.json && npm run typecheck -w @cadenza/extension",
     "test": "vitest run",
-    "test:e2e": "CADENZA_E2E=1 npm run build && playwright test",
+    "test:e2e": "CADENZA_E2E=1 npm run build && node scripts/check-size.mjs packages/extension/.output-e2e/chrome-mv3 && playwright test",
     "check:naming": "node scripts/check-naming.mjs",
     "check": "npm run lint && npm run typecheck && npm run check:naming && npm test",
-    "eval": "jiti evals/run.ts"
+    "eval": "jiti evals/run.ts",
+    "check:size": "node scripts/check-size.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",
