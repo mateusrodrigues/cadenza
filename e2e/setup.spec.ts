@@ -60,16 +60,16 @@ test('a site turned off in settings shows nothing until turned back on', async (
   await overlayCount(page, 1);
 
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await options.getByLabel('Site to turn off').fill('http://127.0.0.1:4173/apply.html');
-  await options.getByRole('button', { name: 'Turn off' }).click();
+  await options.goto(`chrome-extension://${extensionId}/options.html#sites`);
+  await options.getByLabel('Turn off on a site').fill('http://127.0.0.1:4173/apply.html');
+  await options.getByRole('button', { name: 'Turn off', exact: true }).click();
   await expect(options.locator('#sites-list li')).toHaveText(/127\.0\.0\.1/);
 
   // The open field clears without any typing; the badge shows Cadenza is paused here.
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(0);
   await expect(page.locator('cadenza-badge')).toHaveAttribute('data-state', 'paused');
 
-  await options.getByRole('button', { name: 'Turn Cadenza on for 127.0.0.1' }).click();
+  await options.getByRole('button', { name: 'Turn on for 127.0.0.1' }).click();
   await expect(options.locator('#sites-list li')).toHaveCount(0);
   await overlayCount(page, 1);
 });
@@ -102,16 +102,16 @@ test('Add to dictionary hides the word everywhere until removed', async ({
   await page.keyboard.press('Escape');
 
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await expect(options.locator('#dictionary-list .provider-text')).toHaveText(['tomorow']);
-  await options.getByRole('button', { name: 'Remove tomorow from the dictionary' }).click();
+  await options.goto(`chrome-extension://${extensionId}/options.html#dictionary`);
+  await expect(options.locator('#dictionary-list .word')).toHaveText(['tomorow']);
+  await options.getByRole('button', { name: 'Remove tomorow' }).click();
   await expect(options.locator('#dictionary-list li')).toHaveCount(0);
   await expect(page.locator('cadenza-overlay[data-count="2"]')).toHaveCount(2);
 
   // Words can be added in settings too.
-  await options.getByLabel('Word to add').fill('teh');
+  await options.getByLabel('Add a word').fill('teh');
   await options.getByRole('button', { name: 'Add word' }).click();
-  await expect(options.locator('#dictionary-list .provider-text')).toHaveText(['teh']);
+  await expect(options.locator('#dictionary-list .word')).toHaveText(['teh']);
   // "Read teh book tomorow." keeps tomorow; "Their going tomorow." is unaffected.
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
   await expect(page.locator('cadenza-overlay[data-count="2"]')).toHaveCount(1);
@@ -129,11 +129,15 @@ test('goals and the daily limit are saved; usage lists checks', async ({
   await overlayCount(page, 1);
 
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await options.getByLabel("Tone you're aiming for").selectOption('formal');
-  await options.getByLabel('Readers').selectOption('expert');
+  await options.goto(`chrome-extension://${extensionId}/options.html#writing`);
+  await options.getByRole('radio', { name: 'Formal' }).check();
+  await options.getByLabel('Audience').selectOption('expert');
+  await options.getByRole('link', { name: 'Usage' }).click();
+  // The limit field is off until the switch is on.
+  await expect(options.getByLabel('Checks per day')).toBeDisabled();
+  await options.getByRole('switch', { name: 'Daily limit' }).check();
   await options.getByLabel('Checks per day').fill('50');
-  await options.locator('#limit-on').check();
+  await options.getByLabel('Checks per day').press('Tab');
   await expect
     .poll(async () => {
       const s = await storedSettings(worker);
@@ -142,8 +146,9 @@ test('goals and the daily limit are saved; usage lists checks', async ({
     .toEqual([{ formality: 'formal', audience: 'expert' }, 50]);
 
   const rows = options.locator('#usage-table tbody tr');
-  await expect(rows.first()).toContainText('Today');
-  await expect(rows.first()).toContainText('Test rules (no AI)');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.first().locator('th')).toContainText('(today)');
+  await expect(rows.first().locator('td').first()).not.toHaveText('0');
 });
 
 test('passphrase: keys are encrypted, locked keys stop checks, unlocking resumes them', async ({
@@ -177,15 +182,15 @@ test('passphrase: keys are encrypted, locked keys stop checks, unlocking resumes
   await putSecret(worker, 'apiKeys', { s: 'secret-test-key' });
 
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.goto(`chrome-extension://${extensionId}/options.html#passphrase`);
   // Let Cadenza's requests reach the stub without an extension Origin (see providers.spec).
   await options.evaluate(
     (origin) => chrome.runtime.sendMessage({ type: 'cadenza/allow-origin', origin }),
     STUB,
   );
   await options.getByLabel('New passphrase').fill('correct horse');
-  await options.getByLabel('Repeat it').fill('correct horse');
-  await options.getByRole('button', { name: 'Lock keys with passphrase' }).click();
+  await options.getByLabel('Repeat passphrase').fill('correct horse');
+  await options.getByRole('button', { name: 'Lock keys' }).click();
   await expect(options.locator('#security-message')).toContainText('Keys encrypted');
   const stored = await worker.evaluate(readSecrets);
   expect(stored.apiKeys).toBeUndefined();
@@ -216,9 +221,11 @@ test('passphrase: keys are encrypted, locked keys stop checks, unlocking resumes
   await expect(options.locator('#provider-list li')).toHaveCount(1);
 
   // Saving settings while unlocked keeps the key encrypted.
-  await options.getByLabel("Tone you're aiming for").selectOption('neutral');
+  await options.getByRole('link', { name: 'Writing' }).click();
+  await options.getByRole('radio', { name: 'Neutral' }).check();
   await expect.poll(async () => (await worker.evaluate(readSecrets)).apiKeys).toBeUndefined();
 
+  await options.getByRole('link', { name: 'Passphrase' }).click();
   await options.getByRole('button', { name: 'Remove passphrase' }).click();
   await expect
     .poll(async () => (await worker.evaluate(readSecrets)).apiKeys)
@@ -332,9 +339,9 @@ test('while off on a site, the field is not read: no text reaches the worker', a
   worker,
 }) => {
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await options.getByLabel('Site to turn off').fill('127.0.0.1');
-  await options.getByRole('button', { name: 'Turn off' }).click();
+  await options.goto(`chrome-extension://${extensionId}/options.html#sites`);
+  await options.getByLabel('Turn off on a site').fill('127.0.0.1');
+  await options.getByRole('button', { name: 'Turn off', exact: true }).click();
   await expect(options.locator('#sites-list li')).toHaveCount(1);
 
   const checks = () =>
@@ -354,7 +361,7 @@ test('while off on a site, the field is not read: no text reaches the worker', a
   await expect(page.locator('cadenza-overlay[data-count="0"]')).toHaveCount(2);
 
   // Back on: the fields are checked again.
-  await options.getByRole('button', { name: 'Turn Cadenza on for 127.0.0.1' }).click();
+  await options.getByRole('button', { name: 'Turn on for 127.0.0.1' }).click();
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(2);
   expect(await checks()).toBeGreaterThan(before ?? 0);
 });

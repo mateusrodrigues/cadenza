@@ -11,17 +11,9 @@ import { $, say } from './dom';
 
 const MIN_LENGTH = 8;
 
-const TEXT: Record<LockState, string> = {
-  none: 'Your API keys are stored unencrypted in this browser profile. A passphrase encrypts them; you enter it once each time you start the browser.',
-  unlocked:
-    'Your API keys are encrypted with a passphrase and unlocked until you close the browser.',
-  locked: 'Your API keys are encrypted with a passphrase and locked.',
-};
-
-/** Renders the Passphrase section and the locked banner; returns the current state. */
+/** Shows the card for the current lock state (Passphrase tab); returns the state. */
 export async function renderSecurity(): Promise<LockState> {
   const state = await lockState();
-  $('security-text').textContent = TEXT[state];
   $('set-passphrase').hidden = state !== 'none';
   $('passphrase-actions').hidden = state !== 'unlocked';
   $('locked').hidden = state !== 'locked';
@@ -39,7 +31,9 @@ export function wireSecurity(changed: () => Promise<void>) {
     if (fresh.value.length < MIN_LENGTH) {
       return say(message, `Use at least ${MIN_LENGTH} characters.`, 'error');
     }
-    if (fresh.value !== repeat.value) return say(message, 'The passphrases differ.', 'error');
+    if (fresh.value !== repeat.value) {
+      return say(message, 'The two passphrases don’t match.', 'error');
+    }
     say(message, 'Encrypting…');
     await setPassphrase(fresh.value);
     fresh.value = '';
@@ -73,7 +67,7 @@ export function wireSecurity(changed: () => Promise<void>) {
       lockedInput.value = '';
       await changed();
     } else {
-      lockedMessage.textContent = 'That passphrase is not right.';
+      lockedMessage.textContent = 'That passphrase didn’t match. Try again.';
       lockedInput.select();
     }
   });

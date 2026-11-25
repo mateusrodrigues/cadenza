@@ -79,6 +79,9 @@ the provider".
 ## Display
 
 - [ ] Dark mode: card, panel, badge, popup and settings are readable.
+- [ ] Settings: each side tab opens its section, the address keeps the tab (`#writing` and
+      so on) across a reload, and Back returns to the previous tab. At a narrow window the nav
+      sits above the section.
 - [ ] On a dark site (for example, GitHub's dark theme), the card, panel and badge follow the
       field and use the dark theme.
 - [ ] The toolbar icon shows the count for the focused field, the paused icon on a site that

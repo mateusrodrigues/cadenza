@@ -8,155 +8,342 @@
     <link rel="stylesheet" href="../../lib/kit.css" />
     <link rel="stylesheet" href="../../lib/ui.css" />
   </head>
-  <body class="options">
-    <main>
-      <header class="page-head">
+  <body class="settings">
+    <div class="settings-layout">
+      <aside class="settings-side">
         <img class="lockup lockup-light" src="/logo/lockup-on-light.svg" alt="Cadenza" />
         <img class="lockup lockup-dark" src="/logo/lockup-on-dark.svg" alt="Cadenza" />
-        <h1>Settings</h1>
-      </header>
+        <nav aria-label="Settings sections">
+          <ul id="tabs">
+            <li><a href="#provider">Provider</a></li>
+            <li><a href="#writing">Writing</a></li>
+            <li><a href="#dictionary">Dictionary</a></li>
+            <li><a href="#sites">Sites</a></li>
+            <li><a href="#ignored">Ignored</a></li>
+            <li><a href="#usage">Usage</a></li>
+            <li><a href="#passphrase">Passphrase</a></li>
+          </ul>
+        </nav>
+      </aside>
 
-      <form id="locked" class="unlock" hidden>
-        <p>Your API keys are locked. Enter your passphrase to change providers.</p>
-        <input id="locked-passphrase" type="password" aria-label="Passphrase"
-          autocomplete="current-password" />
-        <div class="actions">
-          <button type="submit" class="primary">Unlock</button>
-          <button id="forget-keys" type="button">Forgot passphrase</button>
-        </div>
-        <p id="locked-message" class="error-text" role="status"></p>
-      </form>
-
-      <section aria-labelledby="providers-heading">
-        <h2 id="providers-heading">Provider</h2>
-        <p class="muted">
-          Cadenza sends the text you write to the provider you choose, or to a model running on
-          your own computer. API keys are stored only in this browser.
-        </p>
-        <ul id="provider-list" class="provider-list"></ul>
-        <button id="add-provider" type="button" class="primary">Add provider</button>
-
-        <form id="editor" class="editor" hidden>
-          <h3 id="editor-title">Add provider</h3>
-          <div id="preset-picker" class="picker"></div>
-          <label hidden>Provider <select id="preset" tabindex="-1"></select></label>
-          <label>Name <input id="name" type="text" required /></label>
-          <label>
-            Endpoint URL
-            <input id="base-url" type="url" placeholder="http://localhost:11434/v1" />
-          </label>
-          <label id="api-key-row">
-            <span>API key <span id="key-help"></span></span>
-            <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
-          </label>
-          <label>
-            Model
-            <span class="inline">
-              <select id="model"></select>
-              <button id="load-models" type="button">Load models</button>
-            </span>
-          </label>
-          <label class="check">
-            <input id="explanations" type="checkbox" /> Explain each suggestion
-          </label>
-          <label class="check">
-            <input id="slow-mode" type="checkbox" /> Slow model mode
-          </label>
-          <p class="hint muted">
-            Slow model mode checks one paragraph at a time and lets a check finish while you keep
-            typing. Turn it on for models running on a computer without a fast graphics card.
+      <main class="settings-main">
+        <!-- ---- Provider ---- -->
+        <section class="tab" data-tab="provider" aria-labelledby="provider-title">
+          <header class="tab-head">
+            <h1 id="provider-title" tabindex="-1">Provider</h1>
+            <p>Choose what checks your writing. Cadenza sends text only to the provider marked
+              “In use”. API keys stay in this browser.</p>
+          </header>
+          <p id="keys-locked" class="note" hidden>
+            Your API keys are locked.
+            <a href="#passphrase">Unlock them</a> to change providers.
           </p>
-          <div class="actions">
-            <button type="submit" class="primary">Save</button>
-            <button id="test" type="button">Test connection</button>
-            <button id="cancel" type="button">Cancel</button>
+          <div id="provider-layout" class="provider-layout">
+            <div class="provider-side">
+              <h2>Saved providers</h2>
+              <ul id="provider-list" class="saved"></ul>
+              <p id="provider-empty" class="muted small" hidden>None yet.</p>
+              <button id="add-provider" type="button">
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" />
+                </svg>
+                Add provider
+              </button>
+            </div>
+
+            <form id="editor" class="provider-form" aria-labelledby="editor-title" hidden>
+              <h2 id="editor-title" class="cdz-sr">Edit provider</h2>
+              <div class="grid-2">
+                <div class="field">
+                  <label for="name">Name</label>
+                  <input id="name" type="text" required />
+                </div>
+                <div class="field">
+                  <label for="preset">Preset</label>
+                  <select id="preset"></select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="base-url">Endpoint URL</label>
+                <input id="base-url" type="url" placeholder="http://localhost:11434/v1" />
+              </div>
+              <div id="api-key-row" class="field">
+                <span class="label-row">
+                  <label for="api-key">API key</label>
+                  <span id="key-help"></span>
+                </span>
+                <div class="row">
+                  <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
+                  <button id="show-key" type="button" class="icon" aria-label="Show key"
+                    title="Show key" aria-pressed="false">
+                    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"
+                        fill="none" stroke="currentColor" stroke-width="1.4"
+                        stroke-linejoin="round" />
+                      <circle cx="8" cy="8" r="2" fill="none" stroke="currentColor"
+                        stroke-width="1.4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="model">Model</label>
+                <div class="row">
+                  <select id="model"></select>
+                  <button id="load-models" type="button">
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M13 8a5 5 0 1 1-1.5-3.5M13 2.5V5h-2.5" fill="none"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    </svg>
+                    Load models
+                  </button>
+                </div>
+              </div>
+              <div class="row wrap">
+                <button id="test" type="button">Test connection</button>
+                <p id="message" role="status"></p>
+                <button id="fix" type="button" hidden></button>
+              </div>
+              <div class="switches">
+                <div class="switch-row">
+                  <div>
+                    <label for="explanations">Explain each suggestion</label>
+                    <p id="explanations-help">Adds one sentence to each card. Uses more tokens.</p>
+                  </div>
+                  <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                  <input id="explanations" type="checkbox" role="switch"
+                    aria-describedby="explanations-help" />
+                </div>
+                <div class="switch-row">
+                  <div>
+                    <label for="slow-mode">Slow model mode</label>
+                    <p id="slow-help">Checks less often and waits longer for a reply. For models
+                      on a computer without a fast graphics card.</p>
+                  </div>
+                  <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                  <input id="slow-mode" type="checkbox" role="switch"
+                    aria-describedby="slow-help" />
+                </div>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary">Save provider</button>
+                <button id="use" type="button">Use this provider</button>
+                <button id="cancel" type="button">Cancel</button>
+                <button id="delete" type="button" class="danger">
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none"
+                      stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            </form>
           </div>
-          <p id="message" role="status"></p>
-          <button id="fix" type="button" hidden></button>
-        </form>
-      </section>
+        </section>
 
-      <section aria-labelledby="writing-heading">
-        <h2 id="writing-heading">Writing</h2>
-        <label>English variant <select id="dialect"></select></label>
-        <fieldset id="categories">
-          <legend>Categories</legend>
-        </fieldset>
-        <label>Tone you're aiming for <select id="formality"></select></label>
-        <label>Readers <select id="audience"></select></label>
-        <p class="muted" id="shortcut">
-          <span id="shortcut-text"></span>
-          <button type="button" id="shortcut-change" class="link">Change shortcut</button>
-        </p>
-      </section>
+        <!-- ---- Writing ---- -->
+        <section class="tab" data-tab="writing" aria-labelledby="writing-title" hidden>
+          <header class="tab-head">
+            <h1 id="writing-title" tabindex="-1">Writing</h1>
+            <p>How you write, and what is worth pointing out.</p>
+          </header>
+          <fieldset id="dialect" class="pills">
+            <legend>English variant</legend>
+          </fieldset>
+          <fieldset id="categories">
+            <legend>Categories</legend>
+            <div id="category-rows" class="boxed"></div>
+          </fieldset>
+          <fieldset id="formality" class="pills">
+            <legend>Formality</legend>
+          </fieldset>
+          <div class="field narrow">
+            <label for="audience">Audience</label>
+            <select id="audience" aria-describedby="audience-help"></select>
+            <p id="audience-help" class="muted small"></p>
+          </div>
+          <div class="field">
+            <span class="label">Keyboard shortcut</span>
+            <div class="row wrap">
+              <span id="shortcut-keys" class="keys"></span>
+              <button id="shortcut-change" type="button">Change in Chrome</button>
+              <span id="shortcut-help" class="muted small">Opens the suggestion at the cursor.
+                Chrome keeps extension shortcuts in its own settings.</span>
+            </div>
+          </div>
+        </section>
 
-      <section aria-labelledby="dictionary-heading">
-        <h2 id="dictionary-heading">Dictionary</h2>
-        <p class="muted">Words here are never marked as misspelled.</p>
-        <form id="dictionary-form" class="inline">
-          <input id="dictionary-word" type="text" aria-label="Word to add" spellcheck="false"
-            data-cadenza="off" />
-          <button type="submit">Add word</button>
-        </form>
-        <p id="dictionary-message" class="error-text" role="status"></p>
-        <ul id="dictionary-list" class="provider-list"></ul>
-      </section>
+        <!-- ---- Dictionary ---- -->
+        <section class="tab" data-tab="dictionary" aria-labelledby="dictionary-title" hidden>
+          <header class="tab-head">
+            <h1 id="dictionary-title" tabindex="-1">Dictionary</h1>
+            <p>Words here are never marked as mistakes.</p>
+          </header>
+          <form id="dictionary-form" class="field add">
+            <label for="dictionary-word">Add a word</label>
+            <div class="row">
+              <input id="dictionary-word" type="text" spellcheck="false" data-cadenza="off"
+                placeholder="A name or term to accept" />
+              <button type="submit" class="primary">Add word</button>
+            </div>
+            <p id="dictionary-message" class="error-text" role="status"></p>
+          </form>
+          <p id="dictionary-empty" class="muted">No words yet. Use “Add to dictionary” on a
+            spelling suggestion, or add one here.</p>
+          <ul id="dictionary-list" class="boxed list"></ul>
+        </section>
 
-      <section aria-labelledby="sites-heading">
-        <h2 id="sites-heading">Sites</h2>
-        <p class="muted">Cadenza stays off on these sites and their subdomains.</p>
-        <form id="sites-form" class="inline">
-          <input id="site-input" type="text" aria-label="Site to turn off"
-            placeholder="example.com" spellcheck="false" data-cadenza="off" />
-          <button type="submit">Turn off</button>
-        </form>
-        <p id="sites-message" class="error-text" role="status"></p>
-        <ul id="sites-list" class="provider-list"></ul>
-      </section>
+        <!-- ---- Sites ---- -->
+        <section class="tab" data-tab="sites" aria-labelledby="sites-title" hidden>
+          <header class="tab-head">
+            <h1 id="sites-title" tabindex="-1">Sites</h1>
+            <p>Cadenza is off on these sites and their subdomains. It doesn’t read or check their
+              text.</p>
+          </header>
+          <form id="sites-form" class="field add">
+            <label for="site-input">Turn off on a site</label>
+            <div class="row">
+              <input id="site-input" type="text" placeholder="example.com" spellcheck="false"
+                data-cadenza="off" />
+              <button type="submit" class="primary">Turn off</button>
+            </div>
+            <p id="sites-message" class="error-text" role="status"></p>
+          </form>
+          <p id="sites-empty" class="muted">Cadenza is on everywhere. Turn it off for the site
+            you are on from the toolbar button, or add a site here.</p>
+          <ul id="sites-list" class="boxed list"></ul>
+        </section>
 
-      <section aria-labelledby="ignored-heading">
-        <h2 id="ignored-heading">Ignored</h2>
-        <p class="muted" id="ignored-empty">
-          Text you chose "Don't suggest this again" for appears here.
-        </p>
-        <ul id="ignored-list" class="provider-list"></ul>
-      </section>
+        <!-- ---- Ignored ---- -->
+        <section class="tab" data-tab="ignored" aria-labelledby="ignored-title" hidden>
+          <header class="tab-head">
+            <h1 id="ignored-title" tabindex="-1">Ignored</h1>
+            <p>Suggestions you asked not to see again, on any site.</p>
+          </header>
+          <p id="ignored-empty" class="muted">Nothing ignored yet. Choose “Don’t suggest this
+            again” on a card to hide a suggestion everywhere.</p>
+          <ul id="ignored-list" class="boxed list"></ul>
+          <p id="ignored-foot" class="muted small">Restoring a suggestion lets Cadenza offer it
+            again.</p>
+        </section>
 
-      <section aria-labelledby="usage-heading">
-        <h2 id="usage-heading">Usage</h2>
-        <p class="muted">
-          Checks sent in the last 7 days. Cadenza only sends paragraphs that changed; your
-          provider's own dashboard has the exact bill.
-        </p>
-        <table id="usage-table" class="usage" hidden>
-          <thead>
-            <tr><th>Day</th><th>Provider</th><th>Checks</th><th>Tokens in</th><th>Tokens out</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <p id="usage-empty" class="muted">Nothing sent yet.</p>
-        <label class="check">
-          <input id="limit-on" type="checkbox" /> Limit checks to hosted providers to
-          <input id="limit" type="number" min="1" step="1" value="500" aria-label="Checks per day" />
-          a day
-        </label>
-      </section>
+        <!-- ---- Usage ---- -->
+        <section class="tab" data-tab="usage" aria-labelledby="usage-title" hidden>
+          <header class="tab-head">
+            <h1 id="usage-title" tabindex="-1">Usage</h1>
+            <p>Counted on this computer. Your provider’s own billing is the record that counts.</p>
+          </header>
+          <div class="boxed scroll">
+            <table id="usage-table" class="usage">
+              <thead>
+                <tr>
+                  <th scope="col">Day</th>
+                  <th scope="col">Checks</th>
+                  <th scope="col">Tokens sent</th>
+                  <th scope="col">Tokens received</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot></tfoot>
+            </table>
+          </div>
+          <div class="boxed padded">
+            <div class="switch-row">
+              <div>
+                <label for="limit-on">Daily limit</label>
+                <p id="limit-help">Optional, for hosted providers. Cadenza stops checking when you
+                  reach it, until midnight.</p>
+              </div>
+              <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+              <input id="limit-on" type="checkbox" role="switch" aria-describedby="limit-help" />
+            </div>
+            <div class="field narrow">
+              <label for="limit">Checks per day</label>
+              <input id="limit" type="number" min="1" step="1" value="500" />
+            </div>
+          </div>
+        </section>
 
-      <section aria-labelledby="security-heading">
-        <h2 id="security-heading">Passphrase</h2>
-        <p class="muted" id="security-text"></p>
-        <form id="set-passphrase" hidden>
-          <label>New passphrase <input id="new-passphrase" type="password" autocomplete="new-password" minlength="8" /></label>
-          <label>Repeat it <input id="repeat-passphrase" type="password" autocomplete="new-password" /></label>
-          <div class="actions"><button type="submit" class="primary">Lock keys with passphrase</button></div>
-        </form>
-        <div id="passphrase-actions" class="actions" hidden>
-          <button id="lock-now" type="button">Lock now</button>
-          <button id="remove-passphrase" type="button">Remove passphrase</button>
-        </div>
-        <p id="security-message" role="status"></p>
-      </section>
-    </main>
+        <!-- ---- Passphrase ---- -->
+        <section class="tab" data-tab="passphrase" aria-labelledby="passphrase-title" hidden>
+          <header class="tab-head">
+            <h1 id="passphrase-title" tabindex="-1">Passphrase</h1>
+            <p>Encrypt your saved API keys with a passphrase only you know.</p>
+          </header>
+
+          <form id="set-passphrase" class="card" hidden>
+            <h2>Lock your keys</h2>
+            <p class="muted small">Your keys are stored unencrypted in this browser profile. With
+              a passphrase, you enter it once each time you start the browser.</p>
+            <div class="field">
+              <label for="new-passphrase">New passphrase</label>
+              <input id="new-passphrase" type="password" autocomplete="new-password"
+                minlength="8" aria-describedby="new-passphrase-help" />
+              <p id="new-passphrase-help" class="muted small">At least 8 characters. A short
+                sentence works well.</p>
+            </div>
+            <div class="field">
+              <label for="repeat-passphrase">Repeat passphrase</label>
+              <input id="repeat-passphrase" type="password" autocomplete="new-password" />
+            </div>
+            <p class="warn">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 2 14.5 13.5h-13ZM8 6.5v3M8 11.5v.5" fill="none" stroke="currentColor"
+                  stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>Cadenza can’t recover a forgotten passphrase. You would need to enter your
+                keys again.</span>
+            </p>
+            <div>
+              <button type="submit" class="primary">
+                <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="3" y="7" width="10" height="7" rx="1.5" fill="none"
+                    stroke="currentColor" stroke-width="1.5" />
+                  <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor"
+                    stroke-width="1.5" />
+                </svg>
+                Lock keys
+              </button>
+            </div>
+          </form>
+
+          <form id="locked" class="card" hidden>
+            <h2 class="with-icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.5" />
+                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor"
+                  stroke-width="1.5" />
+              </svg>
+              Keys are locked
+            </h2>
+            <p class="muted small">Unlock to resume checking and to change providers.</p>
+            <div class="field">
+              <label for="locked-passphrase">Passphrase</label>
+              <input id="locked-passphrase" type="password" autocomplete="current-password" />
+            </div>
+            <p id="locked-message" class="error-text" role="alert"></p>
+            <div class="row wrap">
+              <button type="submit" class="primary">Unlock</button>
+              <button id="forget-keys" type="button" class="quiet">Forgot passphrase</button>
+            </div>
+          </form>
+
+          <div id="passphrase-actions" class="card" hidden>
+            <h2>Keys are encrypted</h2>
+            <p class="muted small">Unlocked until you close the browser.</p>
+            <div class="row wrap">
+              <button id="lock-now" type="button">Lock now</button>
+              <button id="remove-passphrase" type="button" class="danger">Remove passphrase</button>
+            </div>
+          </div>
+          <p id="security-message" role="status"></p>
+        </section>
+      </main>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

@@ -484,6 +484,17 @@ real UI.
   - The Ignored list records the site each rule was added on.
   - Off, or off on a site, the field's text isn't read at all (see `docs/privacy.md`).
   - Content script now 18.9 KB gz.
+- Settings follow the kit's tabbed layout: a side nav (Provider, Writing, Dictionary, Sites,
+  Ignored, Usage, Passphrase) with one section per tab, linkable by `#tab`.
+  - Provider: saved providers beside the form for the selected one (preset picker, show-key
+    button, Use this provider, Delete with a confirmation).
+  - Writing: English variant and formality as pills, category rows, audience, and the shortcut
+    with a button to change it in Chrome.
+  - Sites lists when each site was turned off; Ignored shows each rule's change and its site,
+    with Restore; Usage is a 7-day table with totals, beside the optional daily limit.
+  - Deviations: Formality keeps "No preference", the audience options are Cadenza's own, and
+    the unlocked passphrase state (Lock now, Remove passphrase) has no artboard, so it reuses
+    the kit's card.
 
 ### Phase 9 — Testing
 

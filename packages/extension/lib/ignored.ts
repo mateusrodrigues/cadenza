@@ -14,6 +14,8 @@ export interface IgnoreRule {
   original: string;
   /** Hostname of the page it was added on (the latest, if added on several). */
   site?: string;
+  /** What Cadenza suggested instead, shown in settings (the rule ignores it). */
+  replacement?: string;
 }
 
 const KEY = 'ignored';
@@ -40,7 +42,16 @@ export async function addIgnored(rule: IgnoreRule, site?: unknown): Promise<bool
   const key = ruleKey(rule);
   const kept = rules.filter((r) => ruleKey(r) !== key);
   const host = typeof site === 'string' ? normalizeSite(site) : null;
-  kept.push({ category: rule.category, original: rule.original, ...(host ? { site: host } : {}) });
+  const replacement =
+    typeof rule.replacement === 'string' && rule.replacement.length <= MAX_LENGTH
+      ? rule.replacement
+      : undefined;
+  kept.push({
+    category: rule.category,
+    original: rule.original,
+    ...(replacement !== undefined ? { replacement } : {}),
+    ...(host ? { site: host } : {}),
+  });
   await saveIgnored(kept.slice(-MAX_RULES));
   return true;
 }

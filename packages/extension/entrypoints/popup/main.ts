@@ -8,7 +8,7 @@ import {
   type Settings,
   saveSettings,
 } from '../../lib/settings';
-import { hostOf, siteIsOff } from '../../lib/sites';
+import { hostOf, siteIsOff, turnSiteOff, turnSiteOn } from '../../lib/sites';
 import { loadUsage, today } from '../../lib/usage';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -99,10 +99,7 @@ async function init() {
     toggle.addEventListener('change', async () => {
       const s = await loadSettings();
       // Turning a site back on also clears a parent entry that covered it.
-      const disabledSites = toggle.checked
-        ? [...s.disabledSites.filter((d) => d !== site), site]
-        : s.disabledSites.filter((d) => !siteIsOff(site, [d]));
-      await saveSettings({ ...s, disabledSites });
+      await saveSettings(toggle.checked ? turnSiteOff(s, site, today()) : turnSiteOn(s, site));
       showSite(site, toggle.checked);
     });
   }

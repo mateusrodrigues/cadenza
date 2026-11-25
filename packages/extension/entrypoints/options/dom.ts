@@ -14,8 +14,8 @@ export function button(label: string, onClick: () => void, ariaLabel?: string) {
 export function row(main: string, detail: string | null, ...actions: HTMLElement[]) {
   const li = document.createElement('li');
   const text = document.createElement('div');
-  text.className = 'provider-text';
-  text.append(Object.assign(document.createElement('span'), { textContent: main }));
+  text.className = 'item-text';
+  text.append(Object.assign(document.createElement('strong'), { textContent: main }));
   if (detail) {
     text.append(
       Object.assign(document.createElement('span'), { className: 'muted', textContent: detail }),
@@ -23,6 +23,12 @@ export function row(main: string, detail: string | null, ...actions: HTMLElement
   }
   li.append(text, ...actions);
   return li;
+}
+
+/** Short day for lists ("12 Nov"), or "today". */
+export function shortDay(day: string, today: string): string {
+  if (day === today) return 'today';
+  return new Date(`${day}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 export function say(el: HTMLElement, text: string, kind: 'info' | 'ok' | 'error' = 'info') {

@@ -3,32 +3,49 @@ import { loadUsage, today } from '../../lib/usage';
 import { $ } from './dom';
 
 const fmt = new Intl.NumberFormat();
+const DAYS = 7;
 
+/** The last 7 days, today first, with each day's totals across providers. */
 export async function renderUsage() {
   const log = await loadUsage();
-  const days = Object.keys(log).sort().reverse().slice(0, 7);
-  const now = today();
-  const rows = days.flatMap((day) =>
-    Object.values(log[day] ?? {}).map((u) => {
-      const tr = document.createElement('tr');
-      const label = day === now ? 'Today' : new Date(`${day}T12:00`).toLocaleDateString();
-      for (const text of [
-        label,
-        u.name,
-        fmt.format(u.checks),
-        fmt.format(u.inputTokens),
-        fmt.format(u.outputTokens),
-      ]) {
-        tr.append(Object.assign(document.createElement('td'), { textContent: text }));
-      }
-      return tr;
-    }),
-  );
-  $('usage-table')
-    .querySelector('tbody')
-    ?.replaceChildren(...rows);
-  $('usage-table').hidden = rows.length === 0;
-  $('usage-empty').hidden = rows.length > 0;
+  const now = new Date();
+  const todayKey = today(now);
+  const total = { checks: 0, sent: 0, received: 0 };
+  const rows: HTMLTableRowElement[] = [];
+  for (let i = 0; i < DAYS; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 12);
+    const key = today(date);
+    const day = { checks: 0, sent: 0, received: 0 };
+    for (const u of Object.values(log[key] ?? {})) {
+      day.checks += u.checks;
+      day.sent += u.inputTokens;
+      day.received += u.outputTokens;
+    }
+    total.checks += day.checks;
+    total.sent += day.sent;
+    total.received += day.received;
+    const label = date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+    const tr = line(key === todayKey ? `${label} (today)` : label, day);
+    if (key === todayKey) tr.className = 'today';
+    rows.push(tr);
+  }
+  const table = $<HTMLTableElement>('usage-table');
+  table.tBodies[0]?.replaceChildren(...rows);
+  table.tFoot?.replaceChildren(line(`${DAYS} days`, total));
+}
+
+function line(label: string, n: { checks: number; sent: number; received: number }) {
+  const tr = document.createElement('tr');
+  const th = Object.assign(document.createElement('th'), { scope: 'row', textContent: label });
+  tr.append(th);
+  for (const v of [n.checks, n.sent, n.received]) {
+    tr.append(Object.assign(document.createElement('td'), { textContent: fmt.format(v) }));
+  }
+  return tr;
 }
 
 export async function wireLimit() {
@@ -36,8 +53,10 @@ export async function wireLimit() {
   const limit = $<HTMLInputElement>('limit');
   const { dailyLimit } = await loadSettings();
   on.checked = dailyLimit !== null;
+  limit.disabled = !on.checked;
   if (dailyLimit !== null) limit.value = String(dailyLimit);
   const save = async () => {
+    limit.disabled = !on.checked;
     const n = Math.floor(Number(limit.value));
     if (!(n >= 1)) return;
     const s = await loadSettings();

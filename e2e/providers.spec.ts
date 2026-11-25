@@ -24,7 +24,7 @@ test('settings: add a local server that refuses extensions, allow it, and use it
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html`);
   await options.getByRole('button', { name: 'Add provider' }).click();
-  await options.getByRole('radio', { name: 'Custom endpoint' }).check();
+  await options.getByLabel('Preset').selectOption('custom');
   await options.getByLabel('Name').fill('Stub server');
   await options.getByLabel('Endpoint URL').fill(`${STUB}/v1`);
   await options.getByLabel('Endpoint URL').blur();
@@ -41,14 +41,17 @@ test('settings: add a local server that refuses extensions, allow it, and use it
   await expect(options.locator('#message')).toContainText('refused the connection');
   expect(stub.origins.at(-1)).toMatch(/^POST .* chrome-extension:\/\//);
   await options.getByRole('button', { name: 'Allow connection' }).click();
-  await expect(options.locator('#message')).toContainText('Works:');
+  await expect(options.locator('#message')).toContainText('Connected.');
   await expect(options.locator('#message')).toContainText('“tomorow” → “tomorrow”');
   // After allowing, Cadenza's requests reach the server without an extension Origin.
   expect(stub.origins.at(-1)).toMatch(/^POST \S+ -$/);
 
-  await options.getByRole('button', { name: 'Save' }).click();
+  await options.getByRole('button', { name: 'Save provider' }).click();
+  await expect(options.locator('#message')).toHaveText('Saved, and now in use.');
   await expect(options.locator('#provider-list li')).toHaveCount(2);
-  await expect(options.getByRole('radio', { name: 'Use Stub server' })).toBeChecked();
+  await expect(options.locator('#provider-list li', { hasText: 'Stub server' })).toContainText(
+    'In use',
+  );
   expect(stub.auth.at(-1)).toBe('Bearer stub-test-key');
   // The key is kept out of chrome.storage (content scripts run before the worker can lock it).
   const stored = await worker.evaluate(() => chrome.storage.local.get(null));
@@ -113,12 +116,17 @@ test('settings: switching the active provider and removing one', async ({
   });
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await options.getByRole('radio', { name: 'Use Second' }).check();
   await options
-    .locator('#provider-list li', { hasText: 'Second' })
-    .getByRole('button', { name: 'Remove' })
+    .locator('#provider-list')
+    .getByRole('button', { name: /^Second/ })
     .click();
+  await options.getByRole('button', { name: 'Use this provider' }).click();
+  await expect(options.locator('#provider-list li', { hasText: 'Second' })).toContainText('In use');
+  // Deleting asks first; the provider in use falls back to the one left.
+  options.once('dialog', (d) => void d.accept());
+  await options.getByRole('button', { name: 'Delete' }).click();
   await expect(options.locator('#provider-list li')).toHaveCount(1);
+  await expect(options.locator('#provider-list li')).toContainText('In use');
   const active = await worker.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings');
     return (settings as { activeProviderId: string }).activeProviderId;
@@ -147,8 +155,8 @@ test('settings from an earlier version are migrated', async ({ context, extensio
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(popup.locator('#model')).toHaveText('old-model');
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
-  await expect(options.getByLabel('English variant')).toHaveValue('en-GB');
+  await options.goto(`chrome-extension://${extensionId}/options.html#writing`);
+  await expect(options.getByRole('radio', { name: 'British' })).toBeChecked();
   await expect(options.getByLabel('Correctness')).toBeChecked();
   await expect(options.getByLabel('Clarity')).not.toBeChecked();
 });
@@ -191,7 +199,7 @@ test('keys saved by an earlier version move out of chrome.storage', async () => 
     // …and the key still reaches the server (GETs carry no extension Origin, so no allow step).
     const options = await context.newPage();
     await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html`);
-    await options.locator('#provider-list li').nth(1).getByRole('button', { name: 'Edit' }).click();
+    await options.locator('#provider-list li').nth(1).getByRole('button').click();
     await options.getByRole('button', { name: 'Load models' }).click();
     await expect(options.locator('#message')).toHaveText('Found 1 model.');
     expect(stub.auth.at(-1)).toBe('Bearer legacy-test-key');

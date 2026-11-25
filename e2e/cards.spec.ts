@@ -100,7 +100,9 @@ test("Don't suggest this again applies everywhere until removed in settings", as
   await overlayCount(page, 1);
   await expect
     .poll(() => worker.evaluate(async () => (await chrome.storage.local.get('ignored')).ignored))
-    .toEqual([{ category: 'correctness', original: 'tomorow', site: '127.0.0.1' }]);
+    .toEqual([
+      { category: 'correctness', original: 'tomorow', replacement: 'tomorrow', site: '127.0.0.1' },
+    ]);
 
   // Another field: not flagged.
   await page.locator('#controlled').click();
@@ -109,12 +111,14 @@ test("Don't suggest this again applies everywhere until removed in settings", as
 
   // Listed in settings, and removable.
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.goto(`chrome-extension://${extensionId}/options.html#ignored`);
   const item = options.locator('#ignored-list li');
   await expect(item).toHaveCount(1);
   await expect(item).toContainText('tomorow');
-  await expect(item).toContainText('Correctness · on 127.0.0.1');
-  await item.getByRole('button', { name: 'Stop ignoring tomorow' }).click();
+  await expect(item).toContainText('Correctness');
+  await expect(item).toContainText('tomorrow');
+  await expect(item).toContainText('from 127.0.0.1');
+  await item.getByRole('button', { name: 'Restore tomorow' }).click();
   await expect(item).toHaveCount(0);
   await options.close();
 

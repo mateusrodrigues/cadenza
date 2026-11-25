@@ -40,6 +40,8 @@ export interface Settings {
   goals: Goals;
   /** Hostnames where Cadenza stays off (subdomains included, see sites.ts). */
   disabledSites: string[];
+  /** The day (YYYY-MM-DD, local) each entry in `disabledSites` was turned off, for settings. */
+  siteOffSince: Record<string, string>;
   /** Most checks a day sent to hosted providers; null for no limit. Local models are free. */
   dailyLimit: number | null;
 }
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   categories: [...CATEGORY_IDS],
   goals: { ...DEFAULT_GOALS },
   disabledSites: [],
+  siteOffSince: {},
   dailyLimit: null,
 };
 

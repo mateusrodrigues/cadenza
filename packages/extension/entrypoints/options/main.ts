@@ -6,10 +6,10 @@ import {
   type ProviderConfig,
   type ProviderPreset,
 } from '@cadenza/providers';
-import { CATEGORIES, CATEGORY_IDS, type Dialect, type Goals } from '@cadenza/shared';
+import { CATEGORIES, CATEGORY_IDS, type Category, type Dialect, type Goals } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { explainError } from '../../lib/connect';
-import { lineSample } from '../../lib/icons';
+import { icon, lineSample } from '../../lib/icons';
 import type {
   ListModelsResponse,
   PageMessage,
@@ -23,65 +23,104 @@ import {
   type Settings,
   saveSettings,
 } from '../../lib/settings';
-import { $, button } from './dom';
+import { $ } from './dom';
 import { renderDictionary, renderIgnored, renderSites, wireDictionary, wireSites } from './lists';
 import { renderSecurity, wireSecurity } from './security';
 import { renderUsage, wireLimit } from './usage';
 
 const el = {
+  layout: $<HTMLDivElement>('provider-layout'),
+  lockedNote: $<HTMLParagraphElement>('keys-locked'),
   list: $<HTMLUListElement>('provider-list'),
+  empty: $<HTMLParagraphElement>('provider-empty'),
   add: $<HTMLButtonElement>('add-provider'),
   editor: $<HTMLFormElement>('editor'),
   title: $<HTMLHeadingElement>('editor-title'),
   preset: $<HTMLSelectElement>('preset'),
   name: $<HTMLInputElement>('name'),
   baseURL: $<HTMLInputElement>('base-url'),
-  keyRow: $<HTMLLabelElement>('api-key-row'),
+  keyRow: $<HTMLDivElement>('api-key-row'),
   keyHelp: $<HTMLSpanElement>('key-help'),
   apiKey: $<HTMLInputElement>('api-key'),
+  showKey: $<HTMLButtonElement>('show-key'),
   model: $<HTMLSelectElement>('model'),
   loadModels: $<HTMLButtonElement>('load-models'),
   explanations: $<HTMLInputElement>('explanations'),
   slowMode: $<HTMLInputElement>('slow-mode'),
   test: $<HTMLButtonElement>('test'),
+  use: $<HTMLButtonElement>('use'),
   cancel: $<HTMLButtonElement>('cancel'),
+  remove: $<HTMLButtonElement>('delete'),
   message: $<HTMLParagraphElement>('message'),
   fix: $<HTMLButtonElement>('fix'),
-  dialect: $<HTMLSelectElement>('dialect'),
-  categories: $<HTMLFieldSetElement>('categories'),
-  formality: $<HTMLSelectElement>('formality'),
+  dialect: $<HTMLFieldSetElement>('dialect'),
+  categories: $<HTMLDivElement>('category-rows'),
+  formality: $<HTMLFieldSetElement>('formality'),
   audience: $<HTMLSelectElement>('audience'),
+  audienceHelp: $<HTMLParagraphElement>('audience-help'),
 };
 
+// ---- Tabs --------------------------------------------------------------------------------
+
+const TABS = ['provider', 'writing', 'dictionary', 'sites', 'ignored', 'usage', 'passphrase'];
+
+/**
+ * One section shows at a time, chosen by the address's #fragment, so a tab can be linked to
+ * (#passphrase from the locked note) and Back works. Switching moves focus to its heading.
+ */
+function showTab(name: string, focus: boolean) {
+  const tab = TABS.includes(name) ? name : 'provider';
+  for (const s of document.querySelectorAll<HTMLElement>('.tab')) {
+    s.hidden = s.dataset.tab !== tab;
+  }
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('#tabs a')) {
+    if (a.hash === `#${tab}`) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+  const heading = document.getElementById(`${tab}-title`);
+  document.title = `${heading?.textContent ?? 'Settings'} · Cadenza settings`;
+  if (focus) heading?.focus();
+}
+
+// ---- Settings ----------------------------------------------------------------------------
+
 const DIALECTS: [Dialect, string][] = [
-  ['en-US', 'American English'],
-  ['en-GB', 'British English'],
-  ['en-CA', 'Canadian English'],
-  ['en-AU', 'Australian English'],
+  ['en-US', 'American'],
+  ['en-GB', 'British'],
+  ['en-CA', 'Canadian'],
+  ['en-AU', 'Australian'],
 ];
 
 const FORMALITY: [Goals['formality'], string][] = [
-  ['any', 'Fit the text (no preference)'],
-  ['informal', 'Casual and friendly'],
-  ['neutral', 'Plain and neutral'],
-  ['formal', 'Formal and professional'],
+  ['any', 'No preference'],
+  ['informal', 'Casual'],
+  ['neutral', 'Neutral'],
+  ['formal', 'Formal'],
 ];
 
-const AUDIENCE: [Goals['audience'], string][] = [
-  ['any', 'Anyone (no preference)'],
-  ['general', 'General readers: flag jargon'],
-  ['expert', 'Experts in the subject: allow jargon'],
+const AUDIENCE: [Goals['audience'], string, string][] = [
+  ['any', 'Anyone', 'No preference: Cadenza judges from the text.'],
+  ['general', 'General readers', 'Cadenza points out jargon and suggests plainer words.'],
+  ['expert', 'Specialists', 'Terms of the field are fine; Cadenza leaves jargon alone.'],
 ];
+
+const CATEGORY_HELP: Record<Category, string> = {
+  correctness: 'Spelling, grammar and punctuation',
+  clarity: 'Shorter, plainer ways to say it',
+  style: 'Weak or repeated words',
+  tone: 'How a sentence may land',
+};
 
 /** Last loaded settings, for rendering. Changes always load fresh settings (see `update`). */
 let settings: Settings;
-/** The provider being edited (a copy), or null when the editor is closed. */
+/** The provider in the form (a copy), or null when there is none. */
 let editing: SavedProvider | null = null;
+let isNew = false;
 let fixAction: (() => Promise<void>) | null = null;
 
 /**
  * Change settings starting from what is stored now, so a change made elsewhere (the popup, a
- * card, another section) isn't overwritten by this page's older copy.
+ * card, another tab) isn't overwritten by this page's older copy.
  */
 async function update(change: (s: Settings) => void): Promise<void> {
   const fresh = await loadSettings();
@@ -94,99 +133,46 @@ function send<T>(message: PageMessage): Promise<T> {
   return browser.runtime.sendMessage(message) as Promise<T>;
 }
 
-// ---- Provider list ---------------------------------------------------------------------
+// ---- Provider: saved list ----------------------------------------------------------------
 
 function renderList() {
+  el.empty.hidden = settings.providers.length > 0;
   el.list.replaceChildren(
     ...settings.providers.map((p) => {
       const li = document.createElement('li');
-      const radio = Object.assign(document.createElement('input'), {
-        type: 'radio',
-        name: 'active',
-        checked: p.id === settings.activeProviderId,
-        title: 'Use this provider',
-      });
-      radio.setAttribute('aria-label', `Use ${p.name}`);
-      radio.addEventListener('change', async () => {
-        await update((s) => {
-          s.activeProviderId = p.id;
-        });
-      });
-      const text = document.createElement('div');
-      text.className = 'provider-text';
-      const name = Object.assign(document.createElement('strong'), { textContent: p.name });
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.id = p.id;
+      const selected = !isNew && editing?.id === p.id;
+      b.setAttribute('aria-current', String(selected));
+      const text = document.createElement('span');
       const local = p.kind === 'mock' || isLocalURL(p.baseURL);
-      const meta = Object.assign(document.createElement('span'), {
-        className: 'muted',
-        textContent: [
-          p.model ?? 'No model chosen',
-          local ? 'on this computer' : null,
-          p.slowMode ? 'slow model mode' : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-      });
-      text.append(name, meta);
-      const edit = button('Edit', () => openEditor(p, false));
-      const remove = button('Remove', async () => {
-        await update((s) => {
-          s.providers = s.providers.filter((x) => x.id !== p.id);
-          if (s.activeProviderId === p.id) s.activeProviderId = s.providers[0]?.id ?? null;
-        });
-        if (editing?.id === p.id) closeEditor();
-        renderList();
-      });
-      li.append(radio, text, edit, remove);
+      text.append(
+        Object.assign(document.createElement('strong'), { textContent: p.name }),
+        Object.assign(document.createElement('span'), {
+          className: 'muted',
+          textContent: [p.model ?? 'No model chosen', local ? 'on this computer' : null]
+            .filter(Boolean)
+            .join(' · '),
+        }),
+      );
+      b.append(text);
+      if (p.id === settings.activeProviderId) {
+        const use = document.createElement('span');
+        use.className = 'in-use';
+        use.append(icon('check', 14), 'In use');
+        b.append(use);
+      }
+      b.addEventListener('click', () => openEditor(p, false));
+      li.append(b);
       return li;
     }),
   );
 }
 
-// ---- Editor ------------------------------------------------------------------------------
-
-/** The provider picker: two columns of choices driving the (hidden) preset select. */
-function presetPicker() {
-  const column = (legend: string, presets: ProviderPreset[]) => {
-    const set = document.createElement('fieldset');
-    const l = document.createElement('legend');
-    l.textContent = legend;
-    set.append(l);
-    for (const p of presets) {
-      const label = document.createElement('label');
-      const radio = Object.assign(document.createElement('input'), {
-        type: 'radio',
-        name: 'preset-choice',
-        value: p.id,
-      });
-      radio.addEventListener('change', () => {
-        el.preset.value = p.id;
-        el.preset.dispatchEvent(new Event('change'));
-      });
-      label.append(radio, p.id === 'custom' ? 'Custom endpoint' : p.label);
-      set.append(label);
-    }
-    return set;
-  };
-  $('preset-picker').replaceChildren(
-    column(
-      'On this computer',
-      PRESETS.filter((p) => p.local || p.id === 'custom'),
-    ),
-    column(
-      'Hosted, with your key',
-      PRESETS.filter((p) => !p.local && p.id !== 'custom'),
-    ),
-  );
-}
-
-function syncPicker() {
-  for (const r of document.querySelectorAll<HTMLInputElement>('input[name="preset-choice"]')) {
-    r.checked = r.value === el.preset.value;
-  }
-}
+// ---- Provider: form ----------------------------------------------------------------------
 
 function presetOptions() {
-  presetPicker();
   const group = (label: string, presets: ProviderPreset[]) => {
     const g = document.createElement('optgroup');
     g.label = label;
@@ -195,7 +181,7 @@ function presetOptions() {
   };
   el.preset.replaceChildren(
     group(
-      'Hosted',
+      'Hosted, with your key',
       PRESETS.filter((p) => !p.local && p.id !== 'custom'),
     ),
     group(
@@ -209,24 +195,41 @@ function presetOptions() {
   );
 }
 
-function openEditor(provider: SavedProvider, isNew: boolean) {
+function openEditor(provider: SavedProvider, fresh: boolean) {
   editing = structuredClone(provider);
-  el.title.textContent = isNew ? 'Add provider' : `Edit ${provider.name}`;
-  el.editor.dataset.new = String(isNew);
+  isNew = fresh;
+  el.title.textContent = fresh ? 'Add provider' : `Edit ${provider.name}`;
   el.preset.value = provider.presetId;
-  syncPicker();
   fillEditor();
   setModels(editing.model ? [{ id: editing.model, label: editing.model }] : [], editing.model);
   say('');
   el.editor.hidden = false;
-  el.add.hidden = true;
-  el.name.focus();
+  syncButtons();
+  renderList();
+  if (fresh) el.name.focus();
 }
 
-function closeEditor() {
-  editing = null;
-  el.editor.hidden = true;
-  el.add.hidden = false;
+/** Show the provider in use (or the first), or a new one when there are none. */
+function openDefault() {
+  const p =
+    settings.providers.find((x) => x.id === settings.activeProviderId) ?? settings.providers[0];
+  if (p) openEditor(p, false);
+  else addProvider(false);
+}
+
+function addProvider(focus = true) {
+  const preset = getPreset('openai') ?? PRESETS[0];
+  if (!preset) return;
+  openEditor(newProvider(preset), true);
+  if (!focus) el.name.blur();
+}
+
+function syncButtons() {
+  const inUse = !isNew && editing?.id === settings.activeProviderId;
+  el.use.hidden = isNew || inUse;
+  el.remove.hidden = isNew;
+  el.cancel.hidden = !isNew || settings.providers.length === 0;
+  el.add.hidden = isNew;
 }
 
 function fillEditor() {
@@ -237,6 +240,7 @@ function fillEditor() {
   el.baseURL.value = editing.baseURL;
   el.baseURL.disabled = isMock;
   el.apiKey.value = editing.apiKey ?? '';
+  showKey(false);
   el.keyRow.hidden = isMock || !(preset?.needsKey || editing.presetId === 'custom');
   el.apiKey.placeholder = preset?.needsKey ? '' : 'Optional';
   el.keyHelp.replaceChildren();
@@ -252,6 +256,14 @@ function fillEditor() {
   }
   el.explanations.checked = editing.explanations;
   el.slowMode.checked = editing.slowMode;
+}
+
+function showKey(show: boolean) {
+  el.apiKey.type = show ? 'text' : 'password';
+  el.showKey.setAttribute('aria-pressed', String(show));
+  const label = show ? 'Hide key' : 'Show key';
+  el.showKey.setAttribute('aria-label', label);
+  el.showKey.title = label;
 }
 
 /** Read form fields into `editing` and return it. */
@@ -315,7 +327,7 @@ async function test() {
   const found = res.found.map((f) => `“${f.original}” → “${f.replacement}”`).join(', ');
   const n = res.found.length;
   say(
-    `Works: ${(res.ms / 1000).toFixed(1)} s, ${n} suggestion${n === 1 ? '' : 's'}${found ? `: ${found}` : ''}.`,
+    `Connected. Replied in ${(res.ms / 1000).toFixed(1)} s with ${n} suggestion${n === 1 ? '' : 's'}${found ? `: ${found}` : ''}.`,
     'ok',
   );
 }
@@ -332,15 +344,40 @@ async function save(event: SubmitEvent) {
     if (getPreset(p.presetId)?.needsKey && !p.apiKey) return say('Enter an API key.', 'error');
     if (!p.model) return say('Choose a model (use “Load models”).', 'error');
   }
-  const isNew = el.editor.dataset.new === 'true';
+  const wasNew = isNew;
   await update((s) => {
     const i = s.providers.findIndex((x) => x.id === p.id);
     if (i === -1) s.providers.push(p);
     else s.providers[i] = p;
-    if (!s.activeProviderId || isNew) s.activeProviderId = p.id;
+    if (!s.activeProviderId || wasNew) s.activeProviderId = p.id;
   });
-  closeEditor();
+  openEditor(p, false);
+  say(wasNew ? 'Saved, and now in use.' : 'Saved.', 'ok');
+}
+
+async function useProvider() {
+  if (!editing || isNew) return;
+  const id = editing.id;
+  await update((s) => {
+    s.activeProviderId = id;
+  });
+  syncButtons();
   renderList();
+  say('Now in use.', 'ok');
+}
+
+async function deleteProvider() {
+  if (!editing || isNew) return;
+  const p = editing;
+  const sure = window.confirm(
+    `Delete ${p.name}?${p.apiKey ? ' Its API key is deleted from this browser too.' : ''}`,
+  );
+  if (!sure) return;
+  await update((s) => {
+    s.providers = s.providers.filter((x) => x.id !== p.id);
+    if (s.activeProviderId === p.id) s.activeProviderId = s.providers[0]?.id ?? null;
+  });
+  openDefault();
 }
 
 // ---- Messages and fixes ------------------------------------------------------------------
@@ -372,30 +409,57 @@ function showError(error: WorkerError, p: SavedProvider, retry: () => Promise<vo
   }
 }
 
-// ---- Writing settings --------------------------------------------------------------------
+// ---- Writing -----------------------------------------------------------------------------
+
+/** Radio choices drawn as pills, under the fieldset's legend. */
+function pills<T extends string>(
+  set: HTMLFieldSetElement,
+  name: string,
+  choices: [T, string][],
+  current: T,
+  onChange: (value: T) => void,
+) {
+  for (const l of set.querySelectorAll('label')) l.remove();
+  for (const [value, text] of choices) {
+    const label = document.createElement('label');
+    const radio = Object.assign(document.createElement('input'), {
+      type: 'radio',
+      name,
+      value,
+      checked: value === current,
+    });
+    radio.addEventListener('change', () => onChange(value));
+    label.append(radio, text);
+    set.append(label);
+  }
+}
 
 function renderWriting() {
-  el.dialect.replaceChildren(
-    ...DIALECTS.map(([id, label]) => new Option(label, id, false, id === settings.dialect)),
-  );
-  el.dialect.onchange = () =>
+  pills(el.dialect, 'dialect', DIALECTS, settings.dialect, (dialect) => {
     void update((s) => {
-      s.dialect = el.dialect.value as Dialect;
+      s.dialect = dialect;
     });
-  el.formality.replaceChildren(
-    ...FORMALITY.map(([id, l]) => new Option(l, id, false, id === settings.goals.formality)),
-  );
+  });
+  pills(el.formality, 'formality', FORMALITY, settings.goals.formality, (formality) => {
+    void update((s) => {
+      s.goals = { ...s.goals, formality };
+    });
+  });
   el.audience.replaceChildren(
     ...AUDIENCE.map(([id, l]) => new Option(l, id, false, id === settings.goals.audience)),
   );
-  el.formality.onchange = el.audience.onchange = () =>
+  const help = () => {
+    el.audienceHelp.textContent = AUDIENCE.find(([id]) => id === el.audience.value)?.[2] ?? '';
+  };
+  help();
+  el.audience.onchange = () => {
+    help();
     void update((s) => {
-      s.goals = {
-        formality: el.formality.value as Goals['formality'],
-        audience: el.audience.value as Goals['audience'],
-      };
+      s.goals = { ...s.goals, audience: el.audience.value as Goals['audience'] };
     });
-  const boxes = CATEGORY_IDS.map((id) => {
+  };
+
+  const rows = CATEGORY_IDS.map((id) => {
     const label = document.createElement('label');
     label.className = 'cat-row';
     const box = Object.assign(document.createElement('input'), {
@@ -403,15 +467,19 @@ function renderWriting() {
       checked: settings.categories.includes(id),
       value: id,
     });
-    box.setAttribute('role', 'switch');
     const name = document.createElement('span');
     name.className = `cdz-cat cdz-cat--${id}`;
     name.append(lineSample(id), CATEGORIES[id].label);
-    label.append(name, box);
+    const what = Object.assign(document.createElement('span'), {
+      className: 'muted',
+      textContent: CATEGORY_HELP[id],
+    });
+    label.append(box, name, what);
     box.addEventListener('change', async () => {
       const chosen = CATEGORY_IDS.filter(
         (c) => el.categories.querySelector<HTMLInputElement>(`input[value="${c}"]`)?.checked,
       );
+      // At least one category stays on.
       if (chosen.length === 0) {
         box.checked = true;
         return;
@@ -422,8 +490,23 @@ function renderWriting() {
     });
     return label;
   });
-  for (const l of el.categories.querySelectorAll('label')) l.remove();
-  el.categories.append(...boxes);
+  el.categories.replaceChildren(...rows);
+}
+
+/** The keyboard shortcut for suggestions, as the user has it set in Chrome. */
+async function renderShortcut() {
+  const keys = $('shortcut-keys');
+  const command = (await browser.commands.getAll()).find((c) => c.name === 'open-suggestion');
+  const parts = command?.shortcut?.split('+').map((k) => ({ Period: '.', Comma: ',' })[k] ?? k);
+  keys.replaceChildren(
+    ...(parts ?? []).map((k) =>
+      Object.assign(document.createElement('kbd'), { className: 'cdz-kbd', textContent: k }),
+    ),
+  );
+  keys.setAttribute('aria-label', parts ? `Shortcut: ${parts.join(' ')}` : '');
+  $('shortcut-help').textContent = parts
+    ? 'Opens the suggestion at the cursor. Chrome keeps extension shortcuts in its own settings.'
+    : 'No shortcut set. Chrome keeps extension shortcuts in its own settings.';
 }
 
 // ---- Wiring ------------------------------------------------------------------------------
@@ -433,29 +516,26 @@ async function applyLockState() {
   const state = await renderSecurity();
   settings = await loadSettings();
   const locked = state === 'locked';
-  el.list.hidden = locked;
-  if (locked) closeEditor();
-  el.add.hidden = locked || editing !== null;
-  renderList();
-}
-
-/** The keyboard shortcut for suggestions, as the user has it set in Chrome. */
-async function renderShortcut() {
-  const text = document.getElementById('shortcut-text') as HTMLElement;
-  const command = (await browser.commands.getAll()).find((c) => c.name === 'open-suggestion');
-  const keys = command?.shortcut
-    ?.split('+')
-    .map((k) => ({ Period: '.', Comma: ',' })[k] ?? k)
-    .join('+');
-  text.textContent = keys
-    ? `Keyboard: press ${keys} in a text field to open the suggestion at the cursor; Escape closes it.`
-    : 'Keyboard: set a shortcut to open the suggestion at the cursor.';
-  document.getElementById('shortcut-change')?.addEventListener('click', () => {
-    void browser.tabs.create({ url: 'chrome://extensions/shortcuts' });
-  });
+  el.layout.hidden = locked;
+  el.lockedNote.hidden = !locked;
+  if (locked) {
+    editing = null;
+    return;
+  }
+  // Keep the open form (and what was typed) unless its provider went away.
+  const still = editing && (isNew || settings.providers.some((p) => p.id === editing?.id));
+  if (still) {
+    syncButtons();
+    renderList();
+  } else {
+    openDefault();
+  }
 }
 
 async function init() {
+  showTab(location.hash.slice(1), false);
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1), true));
+
   settings = await loadSettings();
   presetOptions();
   renderWriting();
@@ -478,17 +558,15 @@ async function init() {
     if (changes.settings) {
       settings = await loadSettings();
       void renderSites();
-      if (!editing) renderList();
+      syncButtons();
+      renderList();
     }
   });
   browser.storage.session.onChanged.addListener((changes) => {
     if (changes.unlockKey) void applyLockState();
   });
 
-  el.add.addEventListener('click', () => {
-    const preset = getPreset('openai') ?? PRESETS[0];
-    if (preset) openEditor(newProvider(preset), true);
-  });
+  el.add.addEventListener('click', () => addProvider());
   el.preset.addEventListener('change', () => {
     const preset = getPreset(el.preset.value);
     if (!preset || !editing) return;
@@ -501,7 +579,7 @@ async function init() {
   });
   el.baseURL.addEventListener('change', () => {
     // Moving a new endpoint onto this computer usually means a slower model.
-    if (editing && el.editor.dataset.new === 'true' && isLocalURL(el.baseURL.value)) {
+    if (editing && isNew && isLocalURL(el.baseURL.value)) {
       el.slowMode.checked = true;
       el.explanations.checked = false;
     }
@@ -509,9 +587,12 @@ async function init() {
   el.apiKey.addEventListener('change', () => {
     if (el.apiKey.value.trim() && el.model.options.length <= 1) void loadModels();
   });
+  el.showKey.addEventListener('click', () => showKey(el.apiKey.type === 'password'));
   el.loadModels.addEventListener('click', () => void loadModels());
   el.test.addEventListener('click', () => void test());
-  el.cancel.addEventListener('click', closeEditor);
+  el.use.addEventListener('click', () => void useProvider());
+  el.remove.addEventListener('click', () => void deleteProvider());
+  el.cancel.addEventListener('click', () => openDefault());
   el.fix.addEventListener('click', () => void fixAction?.());
   el.editor.addEventListener('submit', (e) => void save(e));
 }

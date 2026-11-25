@@ -602,7 +602,7 @@ export class FieldSession {
 
   /** "Don't suggest this again": hide it everywhere, and offer Undo on the card. */
   private ignore(s: Suggestion): void {
-    const rule = { category: s.category, original: s.original };
+    const rule = { category: s.category, original: s.original, replacement: s.replacement };
     const key = ruleKey(rule);
     this.followEdit();
     const hidden = this.drawn.filter((d) => ruleKey(d) === key);

@@ -46,3 +46,30 @@ export function pageSite(): string {
     return location.hostname;
   }
 }
+
+/** The site list part of the settings. */
+interface SiteList {
+  disabledSites: string[];
+  siteOffSince: Record<string, string>;
+}
+
+/** Turn Cadenza off on `site` (and its subdomains), noting the day. */
+export function turnSiteOff<T extends SiteList>(s: T, site: string, day: string): T {
+  if (s.disabledSites.includes(site)) return s;
+  return {
+    ...s,
+    disabledSites: [...s.disabledSites, site],
+    siteOffSince: { ...s.siteOffSince, [site]: day },
+  };
+}
+
+/**
+ * Turn Cadenza back on for `site`: drop every entry that covers it (the popup's switch), or,
+ * with `exact`, only that entry (settings' Turn on).
+ */
+export function turnSiteOn<T extends SiteList>(s: T, site: string, exact = false): T {
+  const drop = (d: string) => (exact ? d === site : siteIsOff(site, [d]));
+  const siteOffSince = { ...s.siteOffSince };
+  for (const d of s.disabledSites) if (drop(d)) delete siteOffSince[d];
+  return { ...s, disabledSites: s.disabledSites.filter((d) => !drop(d)), siteOffSince };
+}
