@@ -12,6 +12,8 @@ export default defineContentScript({
     const sessions = new Map<FieldElement, FieldSession>();
 
     const watch = (target: EventTarget | null) => {
+      // Orphaned by a reload or update of Cadenza: reading isInvalid runs the cleanup below.
+      if (ctx.isInvalid) return;
       const field = resolveField(target);
       if (!field || sessions.has(field)) return;
       sessions.set(field, new FieldSession(field));
@@ -19,8 +21,9 @@ export default defineContentScript({
     // composedPath() reaches fields inside open shadow roots.
     const onFocusIn = (event: Event) => watch(event.composedPath()[0] ?? event.target);
 
-    // Drop sessions whose field left the page.
-    const sweep = setInterval(() => {
+    // Drop sessions whose field left the page. ctx.setInterval also notices, within a few
+    // seconds, when Cadenza was reloaded, and runs the cleanup (old underlines and badges go).
+    ctx.setInterval(() => {
       for (const [field, session] of sessions) {
         if (!field.isConnected) {
           session.destroy();
@@ -32,7 +35,7 @@ export default defineContentScript({
     // The worker asks for a recheck when settings change (site turned on, word added…), and
     // relays the keyboard shortcut to every frame of the tab; only the focused one acts on it.
     const onMessage = (message: unknown, sender: { id?: string }) => {
-      if (sender.id !== browser.runtime.id) return;
+      if (ctx.isInvalid || sender.id !== browser.runtime.id) return;
       const type = (message as RefreshMessage | KeyboardMessage | null)?.type;
       if (type === 'cadenza/refresh') {
         for (const [field, session] of sessions) if (field.isConnected) session.refresh();
@@ -57,7 +60,6 @@ export default defineContentScript({
     // focusin already.
     watch(deepActiveElement());
     ctx.onInvalidated(() => {
-      clearInterval(sweep);
       document.removeEventListener('focusin', onFocusIn, true);
       browser.runtime.onMessage.removeListener(onMessage);
       for (const s of sessions.values()) s.destroy();

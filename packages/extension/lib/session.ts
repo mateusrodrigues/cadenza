@@ -12,6 +12,7 @@ import type {
   AddWordMessage,
   CheckMessage,
   CheckResponse,
+  ContentMessage,
   ForgetMessage,
   IgnoreMessage,
   OffReason,
@@ -133,7 +134,7 @@ export class FieldSession {
     if (key === this.reported && !force) return;
     this.reported = key;
     const message: TabStateMessage = { type: 'cadenza/tab-state', state: s.kind, count };
-    browser.runtime.sendMessage(message).catch(() => {});
+    toWorker(message).catch(() => {});
   }
 
   private readText(): { text: string; map?: TextMap } {
@@ -190,7 +191,7 @@ export class FieldSession {
     this.setBadge({ kind: 'checking' });
     let response: CheckResponse;
     try {
-      response = (await browser.runtime.sendMessage(message)) as CheckResponse;
+      response = (await toWorker(message)) as CheckResponse;
     } catch {
       // Extension reloaded or worker unavailable; the next edit retries.
       this.setBadge({ kind: 'idle' });
@@ -512,7 +513,7 @@ export class FieldSession {
     this.ignored.add(ruleKey(rule));
     this.draw(this.drawn, this.drawnText);
     const message: IgnoreMessage = { type: 'cadenza/ignore', rule };
-    browser.runtime.sendMessage(message).catch(() => {});
+    toWorker(message).catch(() => {});
   }
 
   private addWord(word: string): void {
@@ -520,7 +521,7 @@ export class FieldSession {
     this.words.push(word);
     this.draw(this.drawn, this.drawnText);
     const message: AddWordMessage = { type: 'cadenza/add-word', word };
-    browser.runtime.sendMessage(message).catch(() => {});
+    toWorker(message).catch(() => {});
   }
 
   /** Settings changed: check again, even text that was already checked. */
@@ -546,7 +547,7 @@ export class FieldSession {
     this.renderer.destroy();
     this.badge.destroy();
     const forget: ForgetMessage = { type: 'cadenza/forget', fieldId: this.fieldId };
-    browser.runtime.sendMessage(forget).catch(() => {});
+    toWorker(forget).catch(() => {});
   }
 }
 
@@ -562,4 +563,19 @@ function offMessage(reason: OffReason): string {
     return 'Off on this site. Turn it back on from the Cadenza toolbar button.';
   if (reason === 'disabled') return 'Cadenza is switched off. Turn it on from the toolbar button.';
   return 'Cadenza isn’t set up yet. Choose a provider in its settings.';
+}
+
+/**
+ * Sends to the extension's worker. Once Cadenza is reloaded, updated or removed, this script
+ * is orphaned in tabs that were already open, and Chrome *throws* from sendMessage ("Extension
+ * context invalidated") rather than rejecting. Turn that into a rejection, so callers' catch
+ * handlers cover it and nothing surfaces as an uncaught error on the page.
+ */
+export function toWorker(message: ContentMessage): Promise<unknown> {
+  try {
+    if (!browser.runtime?.id) return Promise.reject(new Error('Cadenza was reloaded'));
+    return browser.runtime.sendMessage(message);
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }

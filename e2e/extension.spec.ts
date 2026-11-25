@@ -104,3 +104,35 @@ test('checks a field that had focus before Cadenza loaded', async ({ context }) 
   await page.keyboard.type('Read teh book.');
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
 });
+
+test('tabs left open when Cadenza reloads throw no errors, and clear their marks', async ({
+  context,
+  worker,
+}) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  // Content-script errors surface here, not as page errors.
+  const cdp = await context.newCDPSession(page);
+  const errors: string[] = [];
+  cdp.on('Runtime.exceptionThrown', (e) => {
+    errors.push(e.exceptionDetails.exception?.description ?? e.exceptionDetails.text);
+  });
+  await cdp.send('Runtime.enable');
+  await page.locator('#textarea').click();
+  await page.keyboard.type('Read teh book.');
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
+
+  // An update or a reload from chrome://extensions orphans this tab's content script.
+  await worker.evaluate(() => chrome.runtime.reload()).catch(() => {});
+  await page.waitForTimeout(1000);
+  for (let i = 0; i < 3; i++) {
+    await page.locator('#textarea').blur();
+    await page.locator('#textarea').focus();
+    await page.keyboard.type(' x');
+    await page.waitForTimeout(300);
+  }
+  // The old script notices within its 5 s sweep and removes its underlines and badge.
+  await expect(page.locator('cadenza-badge')).toHaveCount(0, { timeout: 8000 });
+  await expect(page.locator('cadenza-overlay')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
