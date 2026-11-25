@@ -1,15 +1,19 @@
 import { CATEGORY_IDS, type Category, type Suggestion } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
+import { normalizeSite } from './sites';
 
 /**
  * Text the user asked never to be flagged again ("Don't suggest this again"), per category.
  * Kept in `storage.local`, which only extension pages and the worker can read; content
  * scripts ask the worker to add an entry. The model's replacement varies from run to run, so
- * a rule matches on the flagged text alone.
+ * a rule matches on the flagged text alone, on every site. The site it was added on is kept
+ * to show in settings.
  */
 export interface IgnoreRule {
   category: Category;
   original: string;
+  /** Hostname of the page it was added on (the latest, if added on several). */
+  site?: string;
 }
 
 const KEY = 'ignored';
@@ -29,14 +33,25 @@ export async function saveIgnored(rules: IgnoreRule[]): Promise<void> {
   await browser.storage.local.set({ [KEY]: rules });
 }
 
-/** Add a rule (newest last); returns false if it isn't a valid rule. */
-export async function addIgnored(rule: IgnoreRule): Promise<boolean> {
+/** Add a rule (newest last), noting the site; returns false if it isn't a valid rule. */
+export async function addIgnored(rule: IgnoreRule, site?: unknown): Promise<boolean> {
   if (!validRule(rule)) return false;
   const rules = await loadIgnored();
   const key = ruleKey(rule);
   const kept = rules.filter((r) => ruleKey(r) !== key);
-  kept.push({ category: rule.category, original: rule.original });
+  const host = typeof site === 'string' ? normalizeSite(site) : null;
+  kept.push({ category: rule.category, original: rule.original, ...(host ? { site: host } : {}) });
   await saveIgnored(kept.slice(-MAX_RULES));
+  return true;
+}
+
+/** Remove a rule (settings, or Undo on the card that added it). */
+export async function removeIgnored(rule: IgnoreRule): Promise<boolean> {
+  if (!validRule(rule)) return false;
+  const key = ruleKey(rule);
+  const rules = await loadIgnored();
+  const kept = rules.filter((r) => ruleKey(r) !== key);
+  if (kept.length !== rules.length) await saveIgnored(kept);
   return true;
 }
 

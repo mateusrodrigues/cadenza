@@ -103,6 +103,13 @@ export function focusPopover(owner: object, want: { row?: number; action?: strin
   target?.focus({ preventScroll: true });
 }
 
+/** The pointer is over the owner's popover, or focus is in it (don't close it on a timer). */
+export function popoverEngaged(owner: object): boolean {
+  return (
+    current?.owner === owner && !!box && (box.matches(':hover') || box.matches(':focus-within'))
+  );
+}
+
 export function openKind(owner: object): PopoverKind | null {
   return current?.owner === owner ? current.kind : null;
 }
@@ -204,6 +211,13 @@ const STYLE = `
   .cdz-change .cdz-remove { color: var(--cdz-color-muted); font: var(--cdz-font-size-sm)/1 var(--cdz-font-ui); }
   .cdz-card__never { display: flex; flex-wrap: wrap; gap: 0 12px; }
   .cdz-card__never .cdz-btn + .cdz-btn { margin-left: 0; }
+  .cdz-card__done { display: flex; align-items: center; gap: var(--cdz-space-2); }
+  .cdz-card__donetext { flex: 1; margin: 0; }
+  .cdz-card__done .cdz-btn + .cdz-btn { margin-left: 0; }
+  .cdz-panel__undo { display: flex; align-items: center; gap: var(--cdz-space-2); padding: 8px 8px 8px 14px;
+    border-top: 1px solid var(--cdz-color-border); background: var(--cdz-color-accent-soft, transparent); }
+  .cdz-panel__undo p { flex: 1; margin: 0; }
+  .cdz-panel__undo .cdz-btn { height: 28px; }
   .cdz-error { color: var(--cdz-color-danger); font-size: var(--cdz-font-size-sm); line-height: var(--cdz-line-height-sm); }
   .cdz-error[hidden] { display: none; }
   .cdz-panel__head { display: flex; align-items: center; gap: var(--cdz-space-2);

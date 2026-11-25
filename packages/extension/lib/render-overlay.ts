@@ -89,6 +89,13 @@ export class OverlayRenderer implements Renderer {
    */
   render(suggestions: Suggestion[]): void {
     this.host.dataset.count = String(suggestions.length);
+    if (suggestions.length === 0) {
+      // Nothing to underline: keep no copy of the text (and skip the layout work).
+      this.mirror.replaceChildren();
+      this.lines = [];
+      this.spans.clear();
+      return;
+    }
     const f = this.field;
     if (f instanceof HTMLInputElement || getComputedStyle(f).whiteSpace === 'pre') {
       // Fields that scroll sideways keep the text in one flow: Chrome measures a scroll

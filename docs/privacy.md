@@ -14,6 +14,11 @@ store privacy policy (Phase 10) is written from it.
 - **Never sent:** password fields, payment fields (`autocomplete="cc-*"`), one-time codes,
   fields marked `data-cadenza="off"`, code editors, sites the user turned off, or anything while
   Cadenza is switched off. Text is only read from fields the user focuses.
+- **Not even read while off.** Before each check the content script asks the worker whether
+  Cadenza is on for the page (`cadenza/gate`, which carries the site and no text). While it is
+  switched off, off for the site, or not set up, the field's text isn't read: not sent to the
+  worker, not mirrored for underlines. The worker checks again on every request, as a backstop.
+  An e2e test counts the check requests the worker receives while a site is off (zero).
 
 ## What is stored, and where
 
@@ -23,7 +28,7 @@ store privacy policy (Phase 10) is written from it.
 | Unlocked passphrase key                                                                  | `storage.session`                     | Memory only; browser close           | No (trusted contexts only)  |
 | Settings (providers without keys, goals, sites, limits)                                  | `storage.local`                       | Until changed or uninstall           | No (locked by the worker)   |
 | Check results: per-paragraph hash → suggestions (flagged span, replacement, explanation) | `storage.session` and worker memory   | Memory only; browser close, 8 MB cap | No                          |
-| "Don't suggest this again" rules (flagged text + category)                               | `storage.local`                       | Until removed in settings            | No                          |
+| "Don't suggest this again" rules (flagged text + category + the site it was added on)    | `storage.local`                       | Until removed in settings            | No                          |
 | Dictionary words                                                                         | `storage.local`                       | Until removed in settings            | No                          |
 | Usage counts per provider per day                                                        | `storage.local`                       | 31 days                              | No                          |
 | "Allow connection" rules (server origins)                                                | `declarativeNetRequest` dynamic rules | Until uninstall                      | No                          |

@@ -70,6 +70,25 @@ export function buildCard(s: Suggestion, actions: CardActions): HTMLElement {
   return card;
 }
 
+/**
+ * The card after "Don't suggest this again" or "Add to dictionary": what happened, and Undo.
+ * The message is announced, and read again with whichever button gets focus.
+ */
+export function buildDone(message: string, actions: { undo(): void; close(): void }): HTMLElement {
+  const card = h('div', 'cdz-contents');
+  const row = h('div', 'cdz-card__done');
+  const text = h('p', 'cdz-card__donetext', message);
+  text.id = 'cadenza-change';
+  text.setAttribute('role', 'status');
+  row.append(
+    text,
+    button('Undo', 'cdz-btn', 'undo', () => actions.undo()),
+    iconButton('close', 'close', 'Close', actions.close),
+  );
+  card.append(row);
+  return card;
+}
+
 export interface PanelActions {
   accept(s: Suggestion): Promise<boolean>;
   dismiss(s: Suggestion): void;
@@ -82,10 +101,17 @@ export interface PanelActions {
 /** What the panel says above (or instead of) the list. */
 export type PanelNote = { text: string; error?: boolean } | null;
 
+/** After Accept all: what changed, and Undo. */
+export interface PanelUndo {
+  text: string;
+  undo(): void;
+}
+
 export function buildPanel(
   suggestions: Suggestion[],
   actions: PanelActions,
   note: PanelNote,
+  undo: PanelUndo | null = null,
 ): HTMLElement {
   const panel = h('div', 'cdz-contents');
   const header = h('div', 'cdz-panel__head');
@@ -104,6 +130,16 @@ export function buildPanel(
   panel.append(header);
   const body = h('div', 'cdz-panel__body');
   panel.append(body);
+  if (undo) {
+    const row = h('div', 'cdz-panel__undo');
+    const text = h('p', '', undo.text);
+    text.id = 'cadenza-undo-text';
+    text.setAttribute('role', 'status');
+    const b = button('Undo', 'cdz-btn', 'undo', () => undo.undo());
+    b.setAttribute('aria-describedby', text.id);
+    row.append(text, b);
+    body.append(row);
+  }
   if (note) {
     const p = h('p', note.error ? 'cdz-panel__note cdz-error' : 'cdz-panel__note', note.text);
     if (note.error) p.setAttribute('role', 'alert');

@@ -325,3 +325,36 @@ async function putSecret(worker: Worker, name: string, value: unknown) {
     [name, value] as const,
   );
 }
+
+test('while off on a site, the field is not read: no text reaches the worker', async ({
+  context,
+  extensionId,
+  worker,
+}) => {
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.getByLabel('Site to turn off').fill('127.0.0.1');
+  await options.getByRole('button', { name: 'Turn off' }).click();
+  await expect(options.locator('#sites-list li')).toHaveCount(1);
+
+  const checks = () =>
+    worker.evaluate(() =>
+      (globalThis as { cadenzaChecksReceived?: () => number }).cadenzaChecksReceived?.(),
+    );
+  const before = await checks();
+  const page = await context.newPage();
+  await open(page);
+  await page.locator('#plain').click();
+  await page.keyboard.type('Read teh book.');
+  await page.locator('#input').click();
+  await page.keyboard.type('Their going.');
+  await expect(page.locator('cadenza-badge').first()).toHaveAttribute('data-state', 'paused');
+  await page.waitForTimeout(1500);
+  expect(await checks()).toBe(before);
+  await expect(page.locator('cadenza-overlay[data-count="0"]')).toHaveCount(2);
+
+  // Back on: the fields are checked again.
+  await options.getByRole('button', { name: 'Turn Cadenza on for 127.0.0.1' }).click();
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(2);
+  expect(await checks()).toBeGreaterThan(before ?? 0);
+});

@@ -17,15 +17,17 @@ import {
 } from '@cadenza/providers';
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
-import { addWord, loadDictionary, withoutDictionary } from '../lib/dictionary';
-import { addIgnored, loadIgnored, withoutIgnored } from '../lib/ignored';
+import { addWord, loadDictionary, removeWord, withoutDictionary } from '../lib/dictionary';
+import { addIgnored, loadIgnored, removeIgnored, withoutIgnored } from '../lib/ignored';
 import type {
   AllowOriginResponse,
   CheckMessage,
   CheckResponse,
   ContentMessage,
+  GateResponse,
   KeyboardMessage,
   ListModelsResponse,
+  OffReason,
   PageMessage,
   RefreshMessage,
   StatusResponse,
@@ -111,6 +113,10 @@ export default defineBackground(() => {
     };
 
     switch (msg?.type) {
+      case 'cadenza/gate':
+        return reply(
+          loadSettings().then((s): GateResponse => ({ off: offReason(s, msg.site, sender.url) })),
+        );
       case 'cadenza/check':
         return reply(
           handleCheck(msg, `${sender.tab?.id ?? -1}:${sender.frameId ?? 0}`, sender.url),
@@ -119,9 +125,13 @@ export default defineBackground(() => {
         scheduler.forget(`${sender.tab?.id ?? -1}:${sender.frameId ?? 0}:${msg.fieldId}`);
         return false;
       case 'cadenza/ignore':
-        return reply(addIgnored(msg.rule).then((ok) => ({ ok })));
+        return reply(addIgnored(msg.rule, msg.site).then((ok) => ({ ok })));
+      case 'cadenza/unignore':
+        return reply(removeIgnored(msg.rule).then((ok) => ({ ok })));
       case 'cadenza/add-word':
         return reply(addWord(msg.word).then((ok) => ({ ok })));
+      case 'cadenza/remove-word':
+        return reply(removeWord(msg.word).then((ok) => ({ ok })));
       case 'cadenza/tab-state':
         if (sender.tab?.id !== undefined) showTabState(sender.tab.id, msg);
         return false;
@@ -147,14 +157,13 @@ async function handleCheck(
   frameKey: string,
   frameURL: string | undefined,
 ): Promise<CheckResponse> {
+  if (__CADENZA_E2E__) checksReceived++;
   const settings = await loadSettings();
   const provider = activeProvider(settings);
-  // The tab's site, and the frame's own (an editor embedded from a site the user turned off).
-  const sites = [typeof msg.site === 'string' ? msg.site : null, hostOf(frameURL)];
-  const siteOff = sites.some((h) => h && siteIsOff(h, settings.disabledSites));
-  if (!settings.enabled || !provider || siteOff) {
-    const off = !settings.enabled ? 'disabled' : siteOff ? 'site' : 'setup';
-    return { ok: true, suggestions: [], pending: 0, slow: false, off };
+  // Content scripts ask first (cadenza/gate) and send no text when off; this is the backstop.
+  const off = offReason(settings, msg.site, frameURL);
+  if (off || !provider) {
+    return { ok: true, suggestions: [], pending: 0, slow: false, off: off ?? 'setup' };
   }
   const model = provider.model;
   if (!model) return fail({ kind: 'config', message: 'Choose a model in Cadenza settings.' });
@@ -209,6 +218,29 @@ async function handleCheck(
   } catch (err) {
     return fail(toWorkerError(err));
   }
+}
+
+/** Tests read this to prove no text was sent while Cadenza was off. */
+let checksReceived = 0;
+if (__CADENZA_E2E__) {
+  (globalThis as { cadenzaChecksReceived?: () => number }).cadenzaChecksReceived = () =>
+    checksReceived;
+}
+
+/**
+ * Why Cadenza is off for a page, or null when it's on. Looks at the tab's site and the frame's
+ * own (an editor embedded from a site the user turned off).
+ */
+function offReason(
+  settings: Settings,
+  site: unknown,
+  frameURL: string | undefined,
+): OffReason | null {
+  if (!settings.enabled) return 'disabled';
+  const sites = [typeof site === 'string' ? site : null, hostOf(frameURL)];
+  if (sites.some((h) => h && siteIsOff(h, settings.disabledSites))) return 'site';
+  if (!activeProvider(settings)) return 'setup';
+  return null;
 }
 
 async function handleStatus(): Promise<StatusResponse> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeEdits, widenDeletion } from './apply';
+import { applyToString, invertEdits, mergeEdits, widenDeletion } from './apply';
 
 const edit = (text: string, original: string, replacement: string, from = 0) => {
   const start = text.indexOf(original, from);
@@ -57,5 +57,35 @@ describe('mergeEdits', () => {
     expect(
       mergeEdits(text, [edit(text, 'Their going', "They're going"), edit(text, 'going', 'gone')]),
     ).toBe(null);
+  });
+});
+
+describe('invertEdits', () => {
+  const text = 'Read teh book tomorow, it is basically very unique.';
+  const edits = [
+    edit(text, 'tomorow', 'tomorrow'),
+    edit(text, 'teh', 'the'),
+    edit(text, 'basically', ''),
+  ];
+
+  it('takes the text back, one edit per change', () => {
+    const result = invertEdits(text, edits);
+    expect(result?.after).toBe('Read the book tomorrow, it is very unique.');
+    expect(result?.inverse).toHaveLength(3);
+    expect(applyToString(result?.after ?? '', result?.inverse ?? [])).toBe(text);
+  });
+
+  it('puts back the space a deleted word took with it', () => {
+    const result = invertEdits(text, [edit(text, 'basically', '')]);
+    expect(result?.inverse).toEqual([
+      { start: 28, end: 28, original: '', replacement: ' basically' },
+    ]);
+  });
+
+  it('refuses stale or overlapping edits', () => {
+    expect(invertEdits(text, [{ ...edit(text, 'teh', 'the'), original: 'tha' }])).toBe(null);
+    expect(invertEdits(text, [edit(text, 'Read teh', 'Read the'), edit(text, 'teh', 'the')])).toBe(
+      null,
+    );
   });
 });

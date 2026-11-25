@@ -48,15 +48,43 @@ export interface ForgetMessage {
   fieldId: string;
 }
 
+/**
+ * Asked before each check, and carries no text: is Cadenza on for this page? When it isn't,
+ * the content script doesn't read the field at all.
+ */
+export interface GateMessage {
+  type: 'cadenza/gate';
+  /** Hostname of the top-level page. */
+  site: string;
+}
+
+export interface GateResponse {
+  off: OffReason | null;
+}
+
 /** "Don't suggest this again", sent after the user clicks it on a card. */
 export interface IgnoreMessage {
   type: 'cadenza/ignore';
+  rule: IgnoreRule;
+  /** Hostname of the top-level page, recorded with the rule. */
+  site: string;
+}
+
+/** Undo on the card after "Don't suggest this again". */
+export interface UnignoreMessage {
+  type: 'cadenza/unignore';
   rule: IgnoreRule;
 }
 
 /** "Add to dictionary", sent after the user clicks it on a card. */
 export interface AddWordMessage {
   type: 'cadenza/add-word';
+  word: string;
+}
+
+/** Undo on the card after "Add to dictionary". */
+export interface RemoveWordMessage {
+  type: 'cadenza/remove-word';
   word: string;
 }
 
@@ -121,9 +149,12 @@ export interface AllowOriginMessage {
 export type AllowOriginResponse = { ok: true } | { ok: false; error: WorkerError };
 
 export type ContentMessage =
+  | GateMessage
   | CheckMessage
   | ForgetMessage
   | IgnoreMessage
+  | UnignoreMessage
   | AddWordMessage
+  | RemoveWordMessage
   | TabStateMessage;
 export type PageMessage = StatusMessage | ListModelsMessage | TestMessage | AllowOriginMessage;

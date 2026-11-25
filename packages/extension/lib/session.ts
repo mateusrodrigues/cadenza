@@ -1,7 +1,7 @@
 import { splitParagraphs } from '@cadenza/engine/paragraphs';
 import type { Category, Paragraph, Suggestion } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
-import { applyToEditable, applyToTextControl, type Edit } from './apply';
+import { applyToEditable, applyToTextControl, type Edit, invertEdits } from './apply';
 import { type BadgeState, FieldBadge } from './badge';
 import { dictionaryWord, withoutDictionary } from './dictionary';
 import { mapThroughEdit } from './edit-map';
@@ -14,9 +14,13 @@ import type {
   CheckResponse,
   ContentMessage,
   ForgetMessage,
+  GateMessage,
+  GateResponse,
   IgnoreMessage,
   OffReason,
+  RemoveWordMessage,
   TabStateMessage,
+  UnignoreMessage,
 } from './messages';
 import { timed } from './perf';
 import {
@@ -24,6 +28,7 @@ import {
   focusPopover,
   openKind,
   openPopover,
+  popoverEngaged,
   repositionPopover,
   updatePopover,
 } from './popover';
@@ -32,10 +37,12 @@ import { OverlayRenderer } from './render-overlay';
 import type { Renderer } from './renderer';
 import { pageSite } from './sites';
 import { buildTextMap, offsetOf, type TextMap } from './text-map';
-import { buildCard, buildPanel, type PanelNote } from './views';
+import { buildCard, buildDone, buildPanel, type PanelNote, type PanelUndo } from './views';
 
 const DEBOUNCE_MS = 700;
 const SLOW_DEBOUNCE_MS = 1500;
+/** How long the "Won't suggest … again · Undo" card stays, unless the pointer or focus is on it. */
+const DONE_MS = 6000;
 let nextFieldId = 1;
 
 /**
@@ -68,6 +75,16 @@ export class FieldSession {
   private readonly words: string[] = [];
   /** Cadenza is off for this page (or not set up): no checks until settings change. */
   private off: OffReason | null = null;
+  /**
+   * The worker said Cadenza is on here at the last check. Until it does, the field's text is
+   * not read at all (not even to follow edits): when off, nothing is read or sent.
+   */
+  private on = false;
+  /** Undo for the last Accept all in the panel, while the text is still what it left. */
+  private undoAll: { edits: Edit[]; text: string; count: number } | null = null;
+  /** The open card is the confirmation after "Don't suggest this again" or "Add to dictionary". */
+  private doneOpen = false;
+  private doneTimer: ReturnType<typeof setTimeout> | undefined;
   private observer: MutationObserver | null = null;
   private lastError: string | null = null;
   private panelError: string | null = null;
@@ -145,6 +162,7 @@ export class FieldSession {
 
   /** Keep underlines on their words while the user types, until the next result arrives. */
   private followEdit(): void {
+    if (!this.on) return;
     const { text, map } = this.readText();
     if (text === this.drawnText) return;
     // Back to a text checked before (e.g. undo) doesn't mean the drawn results fit it.
@@ -176,9 +194,30 @@ export class FieldSession {
   }
 
   private async check(): Promise<void> {
+    const seq = ++this.requestSeq;
+    // Ask whether Cadenza is on here before reading anything; the question carries no text.
+    const gate: GateMessage = { type: 'cadenza/gate', site: pageSite() };
+    let off: OffReason | null;
+    try {
+      off = ((await toWorker(gate)) as GateResponse).off;
+    } catch {
+      // Extension reloaded or worker unavailable; the next edit retries.
+      this.setBadge({ kind: 'idle' });
+      return;
+    }
+    if (seq !== this.requestSeq) return;
+    if (off) {
+      this.goOff(off);
+      return;
+    }
+    if (!this.on) {
+      this.on = true;
+      this.off = null;
+      // Catch up with edits made while off (dismissals move with the text).
+      this.followEdit();
+    }
     const { text } = this.readText();
     if (text === this.settledText) return;
-    const seq = ++this.requestSeq;
     const paragraphs = splitParagraphs(text);
     const message: CheckMessage = {
       type: 'cadenza/check',
@@ -207,11 +246,8 @@ export class FieldSession {
     }
     this.lastError = null;
     if (response.off) {
-      this.off = response.off;
-      this.settledText = null;
-      if (openKind(this) === 'card') closePopover(this);
-      this.draw([], this.readText().text);
-      this.setBadge({ kind: 'paused', message: offMessage(response.off) });
+      // Turned off between the gate and the check: the worker sent nothing on.
+      this.goOff(response.off);
       return;
     }
     this.slow = response.slow;
@@ -231,6 +267,20 @@ export class FieldSession {
     }
   }
 
+  /** Cadenza is off for this page: clear what's drawn and stop reading the field. */
+  private goOff(reason: OffReason): void {
+    this.off = reason;
+    this.on = false;
+    this.settledText = null;
+    this.undoAll = null;
+    clearTimeout(this.timer);
+    if (openKind(this) === 'card') closePopover(this);
+    this.drawn = [];
+    this.renderer.render([]);
+    this.setBadge({ kind: 'paused', message: offMessage(reason) });
+    this.refreshPanel();
+  }
+
   private draw(suggestions: Suggestion[], text: string, map?: TextMap): void {
     if (text !== this.drawnText) {
       this.dismissed = mapThroughEdit(this.dismissed, this.drawnText, text);
@@ -246,7 +296,7 @@ export class FieldSession {
     this.drawnText = text;
     this.renderer.render(this.drawn, map);
     if (this.badge.kind === 'done') this.setBadge({ kind: 'done', suggestions: this.drawn });
-    if (openKind(this) === 'card') {
+    if (openKind(this) === 'card' && !this.doneOpen) {
       // The card follows its text, and goes when an edit removes it.
       if (this.drawn.some((s) => s.id === this.cardFor)) repositionPopover(this);
       else closePopover(this);
@@ -286,18 +336,8 @@ export class FieldSession {
           closePopover(this);
           this.dismiss(s);
         },
-        ignore: () => {
-          closePopover(this);
-          this.ignore(s);
-        },
-        ...(dictionaryWord(s)
-          ? {
-              addWord: () => {
-                closePopover(this);
-                this.addWord(dictionaryWord(s) ?? '');
-              },
-            }
-          : {}),
+        ignore: () => this.ignore(s),
+        ...(dictionaryWord(s) ? { addWord: () => this.addWord(dictionaryWord(s) ?? '', s) } : {}),
       }),
       anchor: () => {
         const rects = this.renderer.rectsOf(s.id);
@@ -359,6 +399,7 @@ export class FieldSession {
       align: 'end',
       onClose: () => {
         this.panelError = null;
+        this.undoAll = null;
         this.restoreFocus();
       },
     });
@@ -397,6 +438,7 @@ export class FieldSession {
   /** The first visible suggestion that ends at or after the caret (else the first visible). */
   private suggestionAtCaret(): Suggestion | null {
     const visible = this.drawn.filter((s) => this.renderer.rectsOf(s.id).length > 0);
+    if (visible.length === 0) return null;
     const caret = this.caretOffset() ?? 0;
     return visible.find((s) => s.end >= caret) ?? visible[0] ?? null;
   }
@@ -458,9 +500,14 @@ export class FieldSession {
         },
         dismiss: (s) => this.dismiss(s),
         acceptAll: async (category: Category) => {
-          const ok = await this.accept(this.drawn.filter((s) => s.category === category));
+          const keyboard = this.focusInPopover();
+          const ok = await this.accept(
+            this.drawn.filter((s) => s.category === category),
+            true,
+          );
           this.panelError = ok ? null : failed;
           this.refreshPanel();
+          if (keyboard) focusPopover(this, { action: 'undo' });
           return ok;
         },
         close: () => closePopover(this),
@@ -469,7 +516,38 @@ export class FieldSession {
         },
       },
       this.panelNote(),
+      this.panelUndo(),
     );
+  }
+
+  private panelUndo(): PanelUndo | null {
+    const u = this.undoAll;
+    if (!u || u.text !== this.drawnText) return null;
+    return {
+      text: `Accepted ${u.count} ${u.count === 1 ? 'change' : 'changes'}.`,
+      undo: () => void this.undoAccept(),
+    };
+  }
+
+  /** Undo in the panel after Accept all: put back what it replaced. */
+  private async undoAccept(): Promise<void> {
+    const keyboard = this.focusInPopover();
+    const u = this.undoAll;
+    this.undoAll = null;
+    this.followEdit();
+    if (u && u.text === this.drawnText) {
+      const ok = await this.applyEdits(u.edits);
+      this.panelError = ok ? null : "Couldn't undo here. Press Ctrl+Z in the field instead.";
+      // The worker has these paragraphs cached: their suggestions come back right away.
+      if (ok) this.schedule(0);
+    }
+    this.refreshPanel();
+    if (keyboard) focusPopover(this, { row: 0 });
+  }
+
+  /** Keyboard focus is in the card or panel (the user is working it from the keyboard). */
+  private focusInPopover(): boolean {
+    return this.field.ownerDocument.activeElement?.localName === 'cadenza-ui';
   }
 
   private panelNote(): PanelNote {
@@ -481,8 +559,11 @@ export class FieldSession {
 
   // ---- Actions (each starts from a trusted click; see views.ts) ------------------------------
 
-  /** Apply suggestions to the field. False if the text changed under them or the page refused. */
-  private async accept(suggestions: Suggestion[]): Promise<boolean> {
+  /**
+   * Apply suggestions to the field. False if the text changed under them or the page refused.
+   * With `undoable`, the panel offers Undo afterwards (Accept all).
+   */
+  private async accept(suggestions: Suggestion[], undoable = false): Promise<boolean> {
     this.followEdit();
     const edits: Edit[] = [];
     for (const s of suggestions) {
@@ -492,6 +573,17 @@ export class FieldSession {
       edits.push({ start, end, original, replacement });
     }
     if (edits.length === 0) return false;
+    const undo = undoable ? invertEdits(this.drawnText, edits) : null;
+    this.undoAll = null;
+    const ok = await this.applyEdits(edits);
+    // Offered only when the field holds exactly the text the undo edits expect.
+    if (ok && undo && this.drawnText === undo.after) {
+      this.undoAll = { edits: undo.inverse, text: undo.after, count: edits.length };
+    }
+    return ok;
+  }
+
+  private async applyEdits(edits: Edit[]): Promise<boolean> {
     const ok = isTextControl(this.field)
       ? applyToTextControl(this.field, edits)
       : await applyToEditable(this.field, edits);
@@ -508,20 +600,99 @@ export class FieldSession {
     this.draw(this.drawn, this.drawnText);
   }
 
+  /** "Don't suggest this again": hide it everywhere, and offer Undo on the card. */
   private ignore(s: Suggestion): void {
     const rule = { category: s.category, original: s.original };
-    this.ignored.add(ruleKey(rule));
+    const key = ruleKey(rule);
+    this.followEdit();
+    const hidden = this.drawn.filter((d) => ruleKey(d) === key);
+    const text = this.drawnText;
+    this.showDone(s, `Won’t suggest “${s.original}” again.`, () => {
+      this.ignored.delete(key);
+      const undo: UnignoreMessage = { type: 'cadenza/unignore', rule };
+      toWorker(undo).catch(() => {});
+      this.restore(hidden, text);
+    });
+    this.ignored.add(key);
     this.draw(this.drawn, this.drawnText);
-    const message: IgnoreMessage = { type: 'cadenza/ignore', rule };
+    const message: IgnoreMessage = { type: 'cadenza/ignore', rule, site: pageSite() };
     toWorker(message).catch(() => {});
   }
 
-  private addWord(word: string): void {
+  /** "Add to dictionary": hide it everywhere, and offer Undo on the card. */
+  private addWord(word: string, s: Suggestion): void {
     if (!word) return;
+    this.followEdit();
+    const hidden = this.drawn.filter((d) => withoutDictionary([d], [word]).length === 0);
+    const text = this.drawnText;
+    this.showDone(s, `Added “${word}” to your dictionary.`, () => {
+      const lower = word.toLowerCase();
+      for (let i = this.words.length - 1; i >= 0; i--) {
+        if (this.words[i]?.toLowerCase() === lower) this.words.splice(i, 1);
+      }
+      const undo: RemoveWordMessage = { type: 'cadenza/remove-word', word };
+      toWorker(undo).catch(() => {});
+      this.restore(hidden, text);
+    });
     this.words.push(word);
     this.draw(this.drawn, this.drawnText);
     const message: AddWordMessage = { type: 'cadenza/add-word', word };
     toWorker(message).catch(() => {});
+  }
+
+  /**
+   * Replace the card with a short confirmation and its Undo, where the card was. It closes by
+   * itself after a few seconds, unless the pointer or focus is on it.
+   */
+  private showDone(s: Suggestion, message: string, undo: () => void): void {
+    // Pin the place now: the underline goes in a moment. It moves with the field.
+    const at = this.renderer.rectsOf(s.id)[0] ?? null;
+    const f0 = this.field.getBoundingClientRect();
+    this.swapPopover(
+      () => {
+        openPopover({
+          kind: 'card',
+          owner: this,
+          field: this.field,
+          content: buildDone(message, {
+            undo: () => {
+              closePopover(this);
+              undo();
+            },
+            close: () => closePopover(this),
+          }),
+          anchor: () => {
+            if (!this.field.isConnected) return null;
+            if (!at) return this.badge.rect();
+            const f = this.field.getBoundingClientRect();
+            return new DOMRect(at.x + f.x - f0.x, at.y + f.y - f0.y, at.width, at.height);
+          },
+          onClose: () => {
+            this.doneOpen = false;
+            clearTimeout(this.doneTimer);
+            this.restoreFocus();
+          },
+        });
+        this.doneOpen = true;
+        const wait = () => {
+          this.doneTimer = setTimeout(() => {
+            if (!this.doneOpen) return;
+            if (popoverEngaged(this)) wait();
+            else closePopover(this);
+          }, DONE_MS);
+        };
+        wait();
+      },
+      { action: 'undo' },
+    );
+  }
+
+  /** Undo on the confirmation card: draw the hidden suggestions again where they are now. */
+  private restore(hidden: Suggestion[], text: string): void {
+    this.followEdit();
+    const back = mapThroughEdit(hidden, text, this.drawnText);
+    this.draw([...this.drawn, ...back], this.drawnText);
+    // The settings change also brings a recheck, which confirms them.
   }
 
   /** Settings changed: check again, even text that was already checked. */
@@ -529,13 +700,15 @@ export class FieldSession {
     // The worker's lists are the truth now (a rule may have been removed in settings).
     this.ignored.clear();
     this.words.length = 0;
-    this.off = null;
     this.settledText = null;
-    this.schedule(0);
+    // Check even while off (the gate decides); schedule() waits for this when off.
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => void this.check(), 0);
   }
 
   destroy(): void {
     clearTimeout(this.timer);
+    clearTimeout(this.doneTimer);
     cancelAnimationFrame(this.inputFrame);
     this.field.removeEventListener('input', this.onInput);
     this.field.removeEventListener('blur', this.onBlur);

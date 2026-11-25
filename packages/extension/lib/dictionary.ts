@@ -44,6 +44,16 @@ export async function addWord(word: unknown): Promise<boolean> {
   return true;
 }
 
+/** Remove a word, whatever its case (settings, or Undo on the card that added it). */
+export async function removeWord(word: unknown): Promise<boolean> {
+  if (!validWord(word)) return false;
+  const lower = word.toLowerCase();
+  const words = await loadDictionary();
+  const kept = words.filter((w) => w.toLowerCase() !== lower);
+  if (kept.length !== words.length) await saveDictionary(kept);
+  return true;
+}
+
 function tokens(text: string): Set<string> {
   return new Set(
     Array.from(text.matchAll(TOKENS), (m) => m[0].replace(/[.'’-]+$/, '').toLowerCase()),

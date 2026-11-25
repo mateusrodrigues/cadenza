@@ -70,6 +70,11 @@ the provider".
       screen reader reads each row's change.
 - [ ] The card's previous and next buttons step through the field's suggestions in reading
       order, scrolling the field to each one.
+- [ ] "Don't suggest this again" and "Add to dictionary" leave a confirmation with Undo where
+      the card was; Undo brings the suggestion back. From the keyboard, focus lands on Undo.
+- [ ] Accept all in the panel shows "Accepted N changes" with Undo, which puts back every change
+      (also in a rich editor such as Gmail, keeping the formatting). Typing removes the Undo.
+- [ ] Settings → Ignored shows the site each rule was added on.
 
 ## Display
 

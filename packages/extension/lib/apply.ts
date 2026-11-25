@@ -175,3 +175,47 @@ export function mergeEdits(
   }
   return { start, end, replacement };
 }
+
+/**
+ * The edits that take the text back after `edits` were applied to `text` (Undo after Accept
+ * all), one per change, so a rich editor keeps the formatting between them; and the text they
+ * apply to. Null if they don't round-trip exactly (overlapping or stale edits); then only the
+ * browser's own Ctrl+Z can take it back.
+ */
+export function invertEdits(
+  text: string,
+  edits: Edit[],
+): { inverse: Edit[]; after: string } | null {
+  const list: Edit[] = [];
+  for (const e of edits) {
+    if (text.slice(e.start, e.end) !== e.original) return null;
+    list.push(widenDeletion(text, e));
+  }
+  list.sort((a, b) => a.start - b.start);
+  const after = applyToString(text, list);
+  if (after === null) return null;
+  let shift = 0;
+  const inverse = list.map((e) => {
+    const start = e.start + shift;
+    shift += e.replacement.length - (e.end - e.start);
+    return {
+      start,
+      end: start + e.replacement.length,
+      original: e.replacement,
+      replacement: e.original,
+    };
+  });
+  return applyToString(after, inverse) === text ? { inverse, after } : null;
+}
+
+/** `text` with non-overlapping edits applied, or null if one doesn't match. */
+export function applyToString(text: string, edits: Edit[]): string | null {
+  let out = '';
+  let pos = 0;
+  for (const e of [...edits].sort((a, b) => a.start - b.start)) {
+    if (e.start < pos || text.slice(e.start, e.end) !== e.original) return null;
+    out += text.slice(pos, e.start) + e.replacement;
+    pos = e.end;
+  }
+  return out + text.slice(pos);
+}

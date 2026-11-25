@@ -478,6 +478,12 @@ real UI.
     drawn SVG. They have the same line styles, and keep the typing budget.
 - Content script: 17.8 KB gz. `npm run check`, the full e2e suite and the network site matrix
   pass. Hands-on checks of the new UI on real sites are in `docs/testing.md`.
+- Follow-up, so the kit's copy holds:
+  - Undo after "Don't suggest this again" and "Add to dictionary" (a confirmation card) and
+    after Accept all (in the panel).
+  - The Ignored list records the site each rule was added on.
+  - Off, or off on a site, the field's text isn't read at all (see `docs/privacy.md`).
+  - Content script now 18.9 KB gz.
 
 ### Phase 9 — Testing
 

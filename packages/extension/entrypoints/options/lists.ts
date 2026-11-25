@@ -1,6 +1,6 @@
 import { CATEGORIES } from '@cadenza/shared';
 import { addWord, loadDictionary, saveDictionary, validWord } from '../../lib/dictionary';
-import { type IgnoreRule, loadIgnored, ruleKey, saveIgnored } from '../../lib/ignored';
+import { loadIgnored, removeIgnored } from '../../lib/ignored';
 import { loadSettings, saveSettings } from '../../lib/settings';
 import { normalizeSite } from '../../lib/sites';
 import { $, button, row } from './dom';
@@ -93,14 +93,12 @@ export async function renderIgnored() {
     ...rules.map((rule) =>
       row(
         rule.original,
-        CATEGORIES[rule.category].label,
-        button('Remove', () => void unignore(rule), `Stop ignoring ${rule.original}`),
+        // Rules added before sites were recorded have none.
+        rule.site
+          ? `${CATEGORIES[rule.category].label} · on ${rule.site}`
+          : CATEGORIES[rule.category].label,
+        button('Remove', () => void removeIgnored(rule), `Stop ignoring ${rule.original}`),
       ),
     ),
   );
-}
-
-async function unignore(rule: IgnoreRule) {
-  const key = ruleKey(rule);
-  await saveIgnored((await loadIgnored()).filter((r) => ruleKey(r) !== key));
 }
