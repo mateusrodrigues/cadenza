@@ -72,7 +72,7 @@ test.describe('real editors', () => {
       await page.locator('cadenza-ui button[data-action="accept"]').click();
       await expect(editor).toContainText('Read the book.');
       await expect(editor).not.toContainText('teh');
-      await expect(page.locator('cadenza-ui .error')).toHaveCount(0);
+      await expect(page.locator('cadenza-ui .cdz-error:not([hidden])')).toHaveCount(0);
 
       // The editor's own undo knows about the change: one undo brings the mistake back.
       await page.keyboard.press('ControlOrMeta+z');

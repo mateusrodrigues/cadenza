@@ -1,7 +1,7 @@
 # Privacy review
 
 Phase 7 review of what Cadenza sends, stores and shows. This is an engineering document; the
-store privacy policy (Phase 9) is written from it.
+store privacy policy (Phase 10) is written from it.
 
 ## What leaves the computer
 
@@ -60,4 +60,4 @@ build if one is added (tests excepted). Errors are never logged with text.
 - Onboarding says where text goes for each choice before anything is sent ("Your text goes to
   the AI provider you pick" / "Your text never leaves this computer").
 - The settings page repeats it above the provider list.
-- The store listing and privacy policy (Phase 9) must say the same, and name what is stored.
+- The store listing and privacy policy (Phase 10) must say the same, and name what is stored.

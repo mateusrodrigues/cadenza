@@ -24,7 +24,7 @@ test('settings: add a local server that refuses extensions, allow it, and use it
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html`);
   await options.getByRole('button', { name: 'Add provider' }).click();
-  await options.locator('#preset').selectOption('custom');
+  await options.getByRole('radio', { name: 'Custom endpoint' }).check();
   await options.getByLabel('Name').fill('Stub server');
   await options.getByLabel('Endpoint URL').fill(`${STUB}/v1`);
   await options.getByLabel('Endpoint URL').blur();
@@ -57,7 +57,7 @@ test('settings: add a local server that refuses extensions, allow it, and use it
 
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-  await expect(popup.locator('#provider')).toHaveText('Stub server');
+  await expect(popup.locator('#provider option:checked')).toHaveText('Stub server');
   await expect(popup.locator('#model')).toHaveText('stub-model');
 
   // Slow mode: three paragraphs are checked one request at a time until all are done.

@@ -1,56 +1,61 @@
-import { CATEGORIES, type Category, type Suggestion } from '@cadenza/shared';
+import type { Suggestion } from '@cadenza/shared';
+import { icon } from './icons';
+import { adoptStyles, attach, layerFor, themeOf } from './surface';
 import { trackPosition } from './track';
 
 export type BadgeState =
   | { kind: 'idle' }
   | { kind: 'checking' }
   | { kind: 'done'; suggestions: Suggestion[] }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string }
+  | { kind: 'paused'; message: string };
 
-const SIZE = 18;
+const SIZE = 24;
+const INSET = 8;
 
 /**
- * Small status mark in the bottom-right corner of a field: a pulsing ring while checking,
- * a count colored by the most important category when there are suggestions, "!" on errors.
- * A click opens the field's panel. Lives in a closed shadow root and never takes focus.
+ * The field's status mark (kit: `.cdz-badge`). It sits inside the field, at the bottom right,
+ * or centred on the right in single-line fields:
+ * - a count when there are suggestions (always shown);
+ * - "!" on errors (always shown);
+ * - a turning arc while checking, the Cadenza mark when there's nothing to fix, and a pause
+ *   mark when Cadenza is off here (only while the field has focus, to keep pages calm).
+ * A click opens the field's panel. Count changes are announced politely, once per check.
+ * Lives in a closed shadow root and never takes focus.
  */
 export class FieldBadge {
   private readonly host: HTMLElement;
-  private readonly dot: HTMLDivElement;
+  private readonly badge: HTMLDivElement;
+  private readonly live: HTMLSpanElement;
   private readonly untrack: () => void;
   private signature = '';
+  private focused = false;
+  private visible = false;
 
   constructor(
     private readonly field: HTMLElement,
     onClick: () => void,
   ) {
     this.host = document.createElement('cadenza-badge');
-    this.host.style.cssText =
-      'all: initial; position: absolute; z-index: 2147483646; pointer-events: none;';
     const root = this.host.attachShadow({ mode: 'closed' });
-    const style = document.createElement('style');
-    style.textContent = `
-      .dot { box-sizing: border-box; width: ${SIZE}px; height: ${SIZE}px; border-radius: 50%;
-        display: none; align-items: center; justify-content: center; color: #fff; cursor: pointer;
-        font: 600 11px/1 system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
-      .dot[data-kind="checking"] { display: flex; background: transparent; box-shadow: none;
-        border: 2px solid #8b8fa3; border-top-color: transparent;
-        animation: spin 0.9s linear infinite; }
-      .dot[data-kind="done"] { display: flex; }
-      .dot[data-kind="error"] { display: flex; background: #6b6f80; }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @media (prefers-reduced-motion: reduce) {
-        .dot[data-kind="checking"] { animation: none; border-top-color: #8b8fa3; opacity: .6; }
-      }`;
-    this.dot = document.createElement('div');
-    this.dot.className = 'dot';
-    root.append(style, this.dot);
+    adoptStyles(root, STYLE);
+    const wrap = document.createElement('div');
+    wrap.className = 'cdz-root';
+    this.badge = document.createElement('div');
+    this.badge.className = 'cdz-badge';
+    this.badge.setAttribute('aria-hidden', 'true');
+    this.live = document.createElement('span');
+    this.live.className = 'cdz-sr';
+    this.live.setAttribute('role', 'status');
+    this.live.setAttribute('aria-live', 'polite');
+    wrap.append(this.badge, this.live);
+    root.append(wrap);
     // Keep focus in the field; act on real clicks only.
-    this.host.addEventListener('mousedown', (e) => e.preventDefault());
-    this.host.addEventListener('click', (e) => {
-      if (e.isTrusted && this.host.style.pointerEvents === 'auto') onClick();
+    this.badge.addEventListener('mousedown', (e) => e.preventDefault());
+    this.badge.addEventListener('click', (e) => {
+      if (e.isTrusted && this.visible) onClick();
     });
-    document.documentElement.append(this.host);
+    attach(this.host, layerFor(field));
     this.untrack = trackPosition(field, () => this.position());
     this.set({ kind: 'idle' });
   }
@@ -59,52 +64,84 @@ export class FieldBadge {
     return (this.host.dataset.state ?? 'idle') as BadgeState['kind'];
   }
 
+  /** The field gained or lost focus: quiet states show only while it has it. */
+  setFocused(focused: boolean): void {
+    if (focused === this.focused) return;
+    this.focused = focused;
+    this.signature = '';
+    this.set(this.last);
+  }
+
+  private last: BadgeState = { kind: 'idle' };
+
   set(state: BadgeState): void {
+    this.last = state;
     // Called on every frame while typing: skip when nothing shown would change.
-    const signature =
-      state.kind === 'done'
-        ? `done:${state.suggestions.length}:${state.suggestions.length ? topCategory(state.suggestions) : ''}`
-        : state.kind === 'error'
-          ? `error:${state.message}`
-          : state.kind;
+    const count = state.kind === 'done' ? state.suggestions.length : 0;
+    const signature = `${state.kind}:${count}:${'message' in state ? state.message : ''}:${this.focused}`;
     if (signature === this.signature) return;
+    const announce = state.kind !== this.kind || count !== Number(this.host.dataset.count ?? -1);
     this.signature = signature;
     this.host.dataset.state = state.kind;
-    // Clickable only when there's something to show; otherwise never intercept clicks.
-    const active =
-      state.kind === 'error' || (state.kind === 'done' && state.suggestions.length > 0);
-    this.host.style.pointerEvents = active ? 'auto' : 'none';
-    this.dot.dataset.kind = state.kind;
-    this.dot.textContent = '';
-    this.host.title = '';
-    if (state.kind === 'done') {
-      const n = state.suggestions.length;
-      this.host.dataset.count = String(n);
-      if (n === 0) {
-        this.dot.dataset.kind = 'idle';
-      } else {
-        this.dot.textContent = n > 99 ? '99+' : String(n);
-        this.dot.style.background = CATEGORIES[topCategory(state.suggestions)].color;
-        this.host.title = `Cadenza: ${n} ${n === 1 ? 'suggestion' : 'suggestions'}`;
-      }
+    this.host.dataset.count = String(count);
+    this.host.dataset.theme = themeOf(this.field);
+
+    const b = this.badge;
+    b.replaceChildren();
+    b.removeAttribute('data-state');
+    let title = '';
+    let show = false;
+    if (state.kind === 'done' && count > 0) {
+      b.dataset.state = 'count';
+      b.textContent = count > 99 ? '99+' : String(count);
+      title = `Cadenza: ${count} ${count === 1 ? 'suggestion' : 'suggestions'}`;
+      show = true;
     } else if (state.kind === 'error') {
-      this.dot.textContent = '!';
-      this.host.title = `Cadenza: ${state.message}`;
-      this.dot.style.background = '';
+      b.dataset.state = 'error';
+      b.textContent = '!';
+      title = `Cadenza: ${state.message}`;
+      show = true;
+    } else if (state.kind === 'paused') {
+      b.dataset.state = 'paused';
+      b.append(icon('pause', 14));
+      title = `Cadenza: ${state.message}`;
+      show = this.focused;
+    } else if (state.kind === 'checking') {
+      b.dataset.state = 'checking';
+      b.append(icon('spinner', 14));
+      title = 'Cadenza is checking…';
+      show = this.focused;
+    } else if (state.kind === 'done') {
+      b.append(icon('fermata', 16));
+      title = 'Cadenza: no suggestions';
+      show = this.focused;
+    }
+    this.visible = show;
+    b.hidden = !show;
+    // Hidden, the host must never catch clicks meant for the page.
+    this.host.style.pointerEvents = show ? 'auto' : 'none';
+    this.host.style.visibility = show ? 'visible' : 'hidden';
+    b.title = title;
+    this.host.title = show ? title : '';
+    // Announce settled results only (not "checking" on every pause in typing).
+    if (announce && (state.kind === 'done' || state.kind === 'error') && this.focused) {
+      this.live.textContent = state.kind === 'done' ? title.replace('Cadenza: ', '') : title;
     }
     this.position();
   }
 
   /** Where the badge is on screen (the panel opens next to it). */
   rect(): DOMRect {
-    return this.dot.getBoundingClientRect();
+    return this.badge.getBoundingClientRect();
   }
 
   position(): void {
-    if (!this.field.isConnected) return;
+    if (!this.field.isConnected || !this.visible) return;
     const r = this.field.getBoundingClientRect();
-    this.host.style.top = `${r.bottom + window.scrollY - SIZE - 6}px`;
-    this.host.style.left = `${r.right + window.scrollX - SIZE - 6}px`;
+    const singleLine = this.field instanceof HTMLInputElement || r.height < SIZE + 2 * INSET + 8;
+    const top = singleLine ? r.top + (r.height - SIZE) / 2 : r.bottom - SIZE - INSET;
+    this.host.style.setProperty('--cdz-y', `${Math.round(top)}px`);
+    this.host.style.setProperty('--cdz-x', `${Math.round(r.right - SIZE - INSET)}px`);
   }
 
   destroy(): void {
@@ -113,9 +150,11 @@ export class FieldBadge {
   }
 }
 
-function topCategory(suggestions: Suggestion[]): Category {
-  return suggestions.reduce<Category>(
-    (best, s) => (CATEGORIES[s.category].priority < CATEGORIES[best].priority ? s.category : best),
-    suggestions[0]?.category ?? 'correctness',
-  );
-}
+const STYLE = `
+  /* The host is the badge's box (kit.css makes hosts 0×0); pages see one 24px element. */
+  :host { width: ${SIZE}px !important; height: ${SIZE}px !important;
+    transform: translate(var(--cdz-x, -9999px), var(--cdz-y, -9999px)) !important; }
+  .cdz-badge { position: static; user-select: none; -webkit-user-select: none; }
+  .cdz-badge[hidden] { display: none; }
+  .cdz-badge svg { display: block; }
+`;

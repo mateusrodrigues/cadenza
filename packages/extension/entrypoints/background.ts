@@ -29,6 +29,7 @@ import type {
   PageMessage,
   RefreshMessage,
   StatusResponse,
+  TabStateMessage,
   TestResponse,
   WorkerError,
 } from '../lib/messages';
@@ -38,6 +39,7 @@ import { sessionCacheStore } from '../lib/session-cache';
 import {
   activeProvider,
   checkSettingsFor,
+  isHosted,
   keysLocked,
   loadSettings,
   type SavedProvider,
@@ -69,8 +71,23 @@ export default defineBackground(() => {
     }
   });
 
+  void browser.action.setBadgeBackgroundColor({ color: '#17211E' }).catch(() => {});
+  void browser.action.setBadgeTextColor?.({ color: '#FFFFFF' })?.catch(() => {});
+  void showEnabled();
+  // A page that navigates starts without its old count.
+  browser.tabs.onUpdated.addListener((tabId, info) => {
+    if (info.status !== 'loading') return;
+    void browser.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+    void loadSettings().then(({ enabled }) =>
+      browser.action
+        .setIcon({ tabId, path: enabled ? ICONS.normal : ICONS.paused })
+        .catch(() => {}),
+    );
+  });
+
   // Open fields check again when something that changes their results changes.
   browser.storage.local.onChanged.addListener((changes) => {
+    if (changes.settings) void showEnabled();
     if (changes.settings || changes.ignored || changes.dictionary) refreshTabs();
   });
   browser.storage.session.onChanged.addListener((changes) => {
@@ -105,6 +122,9 @@ export default defineBackground(() => {
         return reply(addIgnored(msg.rule).then((ok) => ({ ok })));
       case 'cadenza/add-word':
         return reply(addWord(msg.word).then((ok) => ({ ok })));
+      case 'cadenza/tab-state':
+        if (sender.tab?.id !== undefined) showTabState(sender.tab.id, msg);
+        return false;
     }
     // Everything below handles keys or settings: extension pages only, never content scripts.
     if (!fromExtensionPage) return false;
@@ -133,7 +153,8 @@ async function handleCheck(
   const sites = [typeof msg.site === 'string' ? msg.site : null, hostOf(frameURL)];
   const siteOff = sites.some((h) => h && siteIsOff(h, settings.disabledSites));
   if (!settings.enabled || !provider || siteOff) {
-    return { ok: true, suggestions: [], pending: 0, slow: false, off: true };
+    const off = !settings.enabled ? 'disabled' : siteOff ? 'site' : 'setup';
+    return { ok: true, suggestions: [], pending: 0, slow: false, off };
   }
   const model = provider.model;
   if (!model) return fail({ kind: 'config', message: 'Choose a model in Cadenza settings.' });
@@ -243,10 +264,6 @@ function getProvider(config: ProviderConfig): Provider {
 
 class DailyLimitError extends Error {}
 
-function isHosted(p: SavedProvider): boolean {
-  return p.kind !== 'mock' && !getPreset(p.presetId)?.local && !isLocalURL(p.baseURL);
-}
-
 async function checkDailyLimit(settings: Settings, provider: SavedProvider): Promise<void> {
   const limit = settings.dailyLimit;
   if (limit === null || !isHosted(provider)) return;
@@ -256,6 +273,30 @@ async function checkDailyLimit(settings: Settings, provider: SavedProvider): Pro
       `Today's limit of ${limit} checks is reached. You can change it in Cadenza settings.`,
     );
   }
+}
+
+// ---- Toolbar icon ---------------------------------------------------------------------------
+
+const ICONS = {
+  normal: { 16: '/icon/16.png', 32: '/icon/32.png' },
+  paused: { 16: '/icon/paused-16.png', 32: '/icon/paused-32.png' },
+  error: { 16: '/icon/error-16.png', 32: '/icon/error-32.png' },
+};
+
+/** The toolbar icon follows the focused field: its count, paused, or an error. */
+function showTabState(tabId: number, msg: TabStateMessage): void {
+  const count = msg.state === 'done' ? msg.count : 0;
+  const text = count > 99 ? '99+' : count > 0 ? String(count) : '';
+  const icon =
+    msg.state === 'paused' ? ICONS.paused : msg.state === 'error' ? ICONS.error : ICONS.normal;
+  void browser.action.setBadgeText({ tabId, text }).catch(() => {});
+  void browser.action.setIcon({ tabId, path: icon }).catch(() => {});
+}
+
+/** Switched off everywhere: the default icon shows paused; tabs reset on their next page. */
+async function showEnabled(): Promise<void> {
+  const { enabled } = await loadSettings();
+  await browser.action.setIcon({ path: enabled ? ICONS.normal : ICONS.paused }).catch(() => {});
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;

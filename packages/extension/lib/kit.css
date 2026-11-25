@@ -1,0 +1,623 @@
+/* Cadenza ui.css: tokens and core components.
+ *
+ * Content script (shadow root)
+ *   const host = document.createElement("cadenza-root");
+ *   const root = host.attachShadow({ mode: "closed" });
+ *   const sheet = new CSSStyleSheet();            // not subject to the page's style-src
+ *   sheet.replaceSync(css);
+ *   root.adoptedStyleSheets = [sheet];
+ *   host.setAttribute("popover", "manual");       // top layer: above page dialogs and
+ *   document.documentElement.append(host);        // any z-index
+ *   host.showPopover();
+ *   A modal <dialog> makes everything outside it inert. While one is open,
+ *   move the host inside that dialog.
+ *
+ * Theme: in the page, follow the FIELD, not the OS. Take the first opaque
+ * background colour up from the field and set data-theme="dark" on the host when
+ * its relative luminance is below 0.18, else "light".
+ * Popup, settings and onboarding: leave data-theme off to follow the OS.
+ *
+ * All sizes are px on purpose: rem would resolve against the host page's root.
+ */
+:host,
+:root {
+  color-scheme: light;
+  --cdz-color-surface: #ffffff;
+  --cdz-color-subtle: #f4f6f5;
+  --cdz-color-sunken: #e9eeec;
+  --cdz-color-border: #d7dedb;
+  --cdz-color-control: #74827d;
+  --cdz-color-text: #17211e;
+  --cdz-color-muted: #51605b;
+  --cdz-color-accent: #0f6b5a;
+  --cdz-color-accent-hover: #0b5748;
+  --cdz-color-on-accent: #ffffff;
+  --cdz-color-accent-soft: #e0f0eb;
+  --cdz-color-focus: #0f6b5a;
+  --cdz-color-danger: #b4232a;
+  --cdz-color-danger-soft: #fcedee;
+  --cdz-color-warn-soft: #fdf3e0;
+  --cdz-color-page: #ffffff;
+  --cdz-cat-correctness-text: #b4232a;
+  --cdz-cat-correctness-soft: #fcedee;
+  --cdz-cat-clarity-text: #2f4fb8;
+  --cdz-cat-clarity-soft: #ecf0fd;
+  --cdz-cat-style-text: #855200;
+  --cdz-cat-style-soft: #fdf3e0;
+  --cdz-cat-tone-text: #7a31ad;
+  --cdz-cat-tone-soft: #f5edfb;
+  --cdz-shadow-badge: 0 0 0 1px rgba(10, 24, 19, 0.08), 0 1px 3px rgba(10, 24, 19, 0.22);
+  --cdz-shadow-card:
+    0 0 0 1px rgba(10, 24, 19, 0.1), 0 10px 28px rgba(10, 24, 19, 0.18),
+    0 2px 6px rgba(10, 24, 19, 0.1);
+  --cdz-shadow-panel:
+    0 0 0 1px rgba(10, 24, 19, 0.1), 0 18px 48px rgba(10, 24, 19, 0.22),
+    0 3px 10px rgba(10, 24, 19, 0.1);
+  --cdz-cat-correctness: #e5484d;
+  --cdz-cat-correctness-tint: rgba(229, 72, 77, 0.16);
+  --cdz-cat-clarity: #3e63dd;
+  --cdz-cat-clarity-tint: rgba(62, 99, 221, 0.16);
+  --cdz-cat-style: #f5a623;
+  --cdz-cat-style-tint: rgba(245, 166, 35, 0.16);
+  --cdz-cat-tone: #8e4ec6;
+  --cdz-cat-tone-tint: rgba(142, 78, 198, 0.16);
+  --cdz-space-1: 4px;
+  --cdz-space-2: 8px;
+  --cdz-space-3: 12px;
+  --cdz-space-4: 16px;
+  --cdz-space-5: 20px;
+  --cdz-space-6: 24px;
+  --cdz-space-8: 32px;
+  --cdz-space-10: 40px;
+  --cdz-space-12: 48px;
+  --cdz-radius-xs: 4px;
+  --cdz-radius-sm: 6px;
+  --cdz-radius-md: 10px;
+  --cdz-radius-lg: 14px;
+  --cdz-radius-full: 999px;
+  --cdz-font-ui:
+    system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Arial, sans-serif;
+  --cdz-font-text:
+    Charter, "Bitstream Charter", "Iowan Old Style", "Sitka Text", Cambria, Georgia, "Noto Serif",
+    serif;
+  --cdz-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Ubuntu Mono", monospace;
+  --cdz-font-size-xs: 12px;
+  --cdz-line-height-xs: 16px;
+  --cdz-font-size-sm: 13px;
+  --cdz-line-height-sm: 18px;
+  --cdz-font-size-md: 14px;
+  --cdz-line-height-md: 20px;
+  --cdz-font-size-lg: 16px;
+  --cdz-line-height-lg: 24px;
+  --cdz-font-size-xl: 20px;
+  --cdz-line-height-xl: 28px;
+  --cdz-font-size-2xl: 28px;
+  --cdz-line-height-2xl: 36px;
+  --cdz-weight-regular: 400;
+  --cdz-weight-semibold: 600;
+  --cdz-weight-bold: 700;
+  --cdz-focus-width: 2px;
+  --cdz-focus-offset: 2px;
+  --cdz-duration: 120ms;
+  --cdz-z: 2147483647;
+  --cdz-size-badge: 24px;
+  --cdz-width-card: 320px;
+  --cdz-width-panel: 360px;
+  --cdz-width-popup: 340px;
+}
+
+:host([data-theme="dark"]),
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --cdz-color-surface: #1d2522;
+  --cdz-color-subtle: #252e2b;
+  --cdz-color-sunken: #141a18;
+  --cdz-color-border: #37433f;
+  --cdz-color-control: #73847e;
+  --cdz-color-text: #ecf1ef;
+  --cdz-color-muted: #a7b5b0;
+  --cdz-color-accent: #63cbb2;
+  --cdz-color-accent-hover: #84d9c5;
+  --cdz-color-on-accent: #07201a;
+  --cdz-color-accent-soft: #17382f;
+  --cdz-color-focus: #7fdcc5;
+  --cdz-color-danger: #ff9a9d;
+  --cdz-color-danger-soft: #3a2123;
+  --cdz-color-warn-soft: #352a16;
+  --cdz-color-page: #121615;
+  --cdz-cat-correctness-text: #ff9a9d;
+  --cdz-cat-correctness-soft: #3a2123;
+  --cdz-cat-clarity-text: #a8b9ff;
+  --cdz-cat-clarity-soft: #202a47;
+  --cdz-cat-style-text: #f7ba52;
+  --cdz-cat-style-soft: #352a16;
+  --cdz-cat-tone-text: #d6a8f5;
+  --cdz-cat-tone-soft: #30213d;
+  --cdz-shadow-badge: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 4px rgba(0, 0, 0, 0.6);
+  --cdz-shadow-card:
+    0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 28px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  --cdz-shadow-panel:
+    0 0 0 1px rgba(255, 255, 255, 0.12), 0 18px 48px rgba(0, 0, 0, 0.62),
+    0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --cdz-color-surface: #1d2522;
+    --cdz-color-subtle: #252e2b;
+    --cdz-color-sunken: #141a18;
+    --cdz-color-border: #37433f;
+    --cdz-color-control: #73847e;
+    --cdz-color-text: #ecf1ef;
+    --cdz-color-muted: #a7b5b0;
+    --cdz-color-accent: #63cbb2;
+    --cdz-color-accent-hover: #84d9c5;
+    --cdz-color-on-accent: #07201a;
+    --cdz-color-accent-soft: #17382f;
+    --cdz-color-focus: #7fdcc5;
+    --cdz-color-danger: #ff9a9d;
+    --cdz-color-danger-soft: #3a2123;
+    --cdz-color-warn-soft: #352a16;
+    --cdz-color-page: #121615;
+    --cdz-cat-correctness-text: #ff9a9d;
+    --cdz-cat-correctness-soft: #3a2123;
+    --cdz-cat-clarity-text: #a8b9ff;
+    --cdz-cat-clarity-soft: #202a47;
+    --cdz-cat-style-text: #f7ba52;
+    --cdz-cat-style-soft: #352a16;
+    --cdz-cat-tone-text: #d6a8f5;
+    --cdz-cat-tone-soft: #30213d;
+    --cdz-shadow-badge: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 4px rgba(0, 0, 0, 0.6);
+    --cdz-shadow-card:
+      0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 28px rgba(0, 0, 0, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.4);
+    --cdz-shadow-panel:
+      0 0 0 1px rgba(255, 255, 255, 0.12), 0 18px 48px rgba(0, 0, 0, 0.62),
+      0 3px 10px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ---------- shadow host: outer page styles cannot move or restyle it ---------- */
+:host {
+  all: initial !important;
+  display: block !important;
+  position: fixed !important;
+  inset: 0 auto auto 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: visible !important;
+  z-index: var(--cdz-z) !important;
+}
+
+.cdz-root {
+  font:
+    var(--cdz-weight-regular) var(--cdz-font-size-md) / var(--cdz-line-height-md) var(--cdz-font-ui);
+  color: var(--cdz-color-text);
+  text-align: left;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+}
+.cdz-root *,
+.cdz-root *::before,
+.cdz-root *::after {
+  box-sizing: border-box;
+}
+.cdz-root :where(h1, h2, h3, p, ul, fieldset) {
+  margin: 0;
+  padding: 0;
+}
+.cdz-root :focus-visible {
+  outline: var(--cdz-focus-width) solid var(--cdz-color-focus);
+  outline-offset: var(--cdz-focus-offset);
+}
+.cdz-root [hidden] {
+  display: none !important;
+}
+.cdz-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- underlines ----------
+ * One <svg class="cdz-u cdz-u--clarity" width="W" height="6"><path d="…"/></svg>
+ * per line fragment, positioned at (left, textBottom - 3) and clipped to the
+ * field's visible box.
+ *   solid, dotted, dashed:  d = `M0 3H${W}`
+ *   wavy (correctness):     d = "M0 3q2.75-4 5.5 0" + "t5.5 0".repeat(Math.ceil(W / 5.5))
+ * Inline SVG needs no data: URL, so a strict img-src cannot block it.
+ */
+.cdz-u {
+  position: fixed;
+  height: 6px;
+  overflow: hidden;
+  pointer-events: none;
+  fill: none;
+}
+.cdz-u--correctness {
+  stroke: var(--cdz-cat-correctness);
+  stroke-width: 1.6px;
+}
+.cdz-u--clarity {
+  stroke: var(--cdz-cat-clarity);
+  stroke-width: 2px;
+}
+.cdz-u--style {
+  stroke: var(--cdz-cat-style);
+  stroke-width: 2.5px;
+  stroke-dasharray: 2.5px 2.5px;
+}
+.cdz-u--tone {
+  stroke: var(--cdz-cat-tone);
+  stroke-width: 2px;
+  stroke-dasharray: 6px 3px;
+}
+.cdz-tint {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 2px;
+}
+.cdz-tint--correctness {
+  background: var(--cdz-cat-correctness-tint);
+}
+.cdz-tint--clarity {
+  background: var(--cdz-cat-clarity-tint);
+}
+.cdz-tint--style {
+  background: var(--cdz-cat-style-tint);
+}
+.cdz-tint--tone {
+  background: var(--cdz-cat-tone-tint);
+}
+
+/* category label: always the line sample AND the name */
+.cdz-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--cdz-font-size-sm);
+  font-weight: var(--cdz-weight-semibold);
+}
+.cdz-cat .cdz-u {
+  position: static;
+  width: 22px;
+  flex: none;
+}
+.cdz-cat--correctness {
+  color: var(--cdz-cat-correctness-text);
+}
+.cdz-cat--clarity {
+  color: var(--cdz-cat-clarity-text);
+}
+.cdz-cat--style {
+  color: var(--cdz-cat-style-text);
+}
+.cdz-cat--tone {
+  color: var(--cdz-cat-tone-text);
+}
+
+/* ---------- controls ---------- */
+.cdz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  margin: 0;
+  padding: 0 var(--cdz-space-3);
+  border: 1px solid var(--cdz-color-control);
+  border-radius: var(--cdz-radius-sm);
+  background: var(--cdz-color-surface);
+  color: var(--cdz-color-text);
+  font: var(--cdz-weight-semibold) var(--cdz-font-size-sm) / 1 var(--cdz-font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cdz-btn:hover {
+  background: var(--cdz-color-subtle);
+}
+.cdz-btn--primary {
+  border-color: var(--cdz-color-accent);
+  background: var(--cdz-color-accent);
+  color: var(--cdz-color-on-accent);
+}
+.cdz-btn--primary:hover {
+  border-color: var(--cdz-color-accent-hover);
+  background: var(--cdz-color-accent-hover);
+}
+.cdz-btn--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cdz-color-muted);
+  font-weight: var(--cdz-weight-regular);
+}
+.cdz-btn--danger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cdz-color-danger);
+}
+.cdz-btn--danger:hover {
+  background: var(--cdz-color-danger-soft);
+}
+.cdz-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cdz-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cdz-radius-sm);
+  background: transparent;
+  color: var(--cdz-color-muted);
+  cursor: pointer;
+}
+.cdz-icon-btn--sm {
+  width: 24px;
+  height: 24px;
+}
+.cdz-icon-btn:hover {
+  background: var(--cdz-color-sunken);
+  color: var(--cdz-color-text);
+}
+.cdz-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--cdz-color-control);
+  border-radius: var(--cdz-radius-sm);
+  background: var(--cdz-color-surface);
+  color: var(--cdz-color-text);
+  font: var(--cdz-font-size-md) var(--cdz-font-ui);
+}
+.cdz-input::placeholder {
+  color: var(--cdz-color-muted);
+  opacity: 1;
+}
+.cdz-switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--cdz-color-control);
+  border-radius: var(--cdz-radius-full);
+  background: var(--cdz-color-surface);
+  cursor: pointer;
+}
+.cdz-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cdz-color-control);
+  transition: transform var(--cdz-duration);
+}
+.cdz-switch[aria-checked="true"] {
+  border-color: var(--cdz-color-accent);
+  background: var(--cdz-color-accent);
+}
+.cdz-switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+  background: var(--cdz-color-on-accent);
+}
+.cdz-kbd {
+  display: inline-block;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--cdz-color-border);
+  border-bottom-width: 2px;
+  border-radius: var(--cdz-radius-xs);
+  background: var(--cdz-color-subtle);
+  color: var(--cdz-color-muted);
+  font: var(--cdz-font-size-xs) / 17px var(--cdz-font-ui);
+  text-align: center;
+}
+
+/* ---------- suggestion card ---------- */
+.cdz-card {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: var(--cdz-width-card);
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 10px 12px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--cdz-radius-md);
+  background: var(--cdz-color-surface);
+  box-shadow: var(--cdz-shadow-card);
+}
+.cdz-card__head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cdz-card__count {
+  margin-left: auto;
+  margin-right: 4px;
+  color: var(--cdz-color-muted);
+  font-size: var(--cdz-font-size-xs);
+}
+.cdz-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font: var(--cdz-font-size-lg) / var(--cdz-line-height-lg) var(--cdz-font-text);
+  overflow-wrap: anywhere;
+}
+.cdz-change--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.cdz-change del {
+  color: var(--cdz-color-muted);
+  text-decoration: line-through 1px;
+}
+.cdz-change ins {
+  padding: 1px 4px;
+  border-radius: var(--cdz-radius-xs);
+  background: var(--cdz-color-accent-soft);
+  font-weight: var(--cdz-weight-bold);
+  text-decoration: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.cdz-card__why {
+  color: var(--cdz-color-muted);
+  font-size: var(--cdz-font-size-sm);
+  line-height: var(--cdz-line-height-sm);
+}
+.cdz-card__actions {
+  display: flex;
+  gap: var(--cdz-space-2);
+}
+.cdz-card__never {
+  padding-top: 4px;
+  border-top: 1px solid var(--cdz-color-border);
+}
+.cdz-card__never .cdz-btn {
+  height: 28px;
+  margin-left: -8px;
+  padding: 0 8px;
+}
+
+/* ---------- field badge ---------- */
+.cdz-badge {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--cdz-size-badge);
+  height: var(--cdz-size-badge);
+  padding: 0;
+  border: 1px solid var(--cdz-color-border);
+  border-radius: var(--cdz-radius-full);
+  background: var(--cdz-color-surface);
+  box-shadow: var(--cdz-shadow-badge);
+  color: var(--cdz-color-accent);
+  font: var(--cdz-weight-bold) var(--cdz-font-size-xs) / 1 var(--cdz-font-ui);
+  cursor: pointer;
+}
+.cdz-badge[data-state="count"] {
+  padding: 0 6px;
+  border-color: var(--cdz-color-text);
+  background: var(--cdz-color-text);
+  color: var(--cdz-color-surface);
+}
+.cdz-badge[data-state="error"] {
+  border: 1.5px solid var(--cdz-color-danger);
+  color: var(--cdz-color-danger);
+}
+.cdz-badge[data-state="paused"] {
+  border: 1px dashed var(--cdz-color-control);
+  background: var(--cdz-color-sunken);
+  color: var(--cdz-color-muted);
+}
+.cdz-badge[data-state="checking"] svg {
+  animation: cdz-turn 900ms linear infinite;
+}
+@keyframes cdz-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- suggestions panel and popup shell ---------- */
+.cdz-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  width: var(--cdz-width-panel);
+  max-width: calc(100vw - 16px);
+  max-height: min(560px, calc(100vh - 16px));
+  border: 1px solid transparent;
+  border-radius: var(--cdz-radius-lg);
+  background: var(--cdz-color-surface);
+  box-shadow: var(--cdz-shadow-panel);
+  overflow: hidden;
+}
+.cdz-panel__body {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.cdz-panel__group {
+  padding: var(--cdz-space-2) 0;
+  border-top: 1px solid var(--cdz-color-border);
+}
+.cdz-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--cdz-space-1);
+  margin: 0 6px;
+  padding: 6px 8px;
+  border-radius: var(--cdz-radius-sm);
+  list-style: none;
+}
+.cdz-panel__row:hover,
+.cdz-panel__row:focus-within {
+  background: var(--cdz-color-subtle);
+}
+.cdz-panel__row .cdz-change {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--cdz-font-size-md);
+}
+.cdz-popup {
+  width: var(--cdz-width-popup);
+  background: var(--cdz-color-surface);
+}
+
+/* ---------- user preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .cdz-root *,
+  .cdz-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* #F5A623 is about 2:1 on white. The brand colour stays the default; people who ask
+   for more contrast get a darker amber on light fields. */
+@media (prefers-contrast: more) {
+  :host(:not([data-theme="dark"])) {
+    --cdz-cat-style: #a86800;
+  }
+  .cdz-u {
+    stroke-width: 3px;
+  }
+}
+@media (forced-colors: active) {
+  .cdz-u {
+    stroke: CanvasText;
+  }
+  .cdz-tint {
+    background: transparent;
+    outline: 1px solid Highlight;
+  }
+  .cdz-card,
+  .cdz-panel {
+    border-color: CanvasText;
+  }
+  .cdz-switch::after {
+    background: CanvasText;
+  }
+  .cdz-switch[aria-checked="true"]::after {
+    background: Highlight;
+  }
+}

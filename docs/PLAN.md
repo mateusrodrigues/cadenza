@@ -420,7 +420,66 @@ Original scope:
   local model).
 - Accessibility: keyboard navigation of cards, screen-reader labels, non-color cues.
 
-### Phase 8 — Testing
+### Phase 8 — Cadenza UI/UX (design system) — ✅ done
+
+Gives Cadenza its own look and feel, from a design system supplied as design artifacts
+(tokens, components and screens). Everything a user sees today is functional placeholder
+styling. This phase replaces it before the hands-on testing, so that testing exercises the
+real UI.
+
+- **Tokens:** color, type, spacing, radius, elevation, motion, and the light and dark themes,
+  in one source that every surface uses. Today the styling is spread across `lib/ui.css`
+  (extension pages), the `STYLE` strings in `lib/popover.ts` and `lib/badge.ts`, and
+  `packages/shared/src/categories.ts` (category colors and underline styles).
+- **In-page UI:** underlines, the field badge, the suggestion card and the panel. These live
+  in closed shadow roots on any site, so they must not inherit page styles or load remote
+  fonts or assets.
+- **Extension pages:** popup, settings, onboarding, and the error and locked states.
+- **Brand assets:** icon set (16–128 px plus toolbar states) and the wordmark, under the naming
+  rule in §6 (Cadenza only).
+- **Keep what Phase 7 established:**
+  - Categories stay distinguishable without color, through their line styles.
+  - Contrast meets WCAG AA, and focus rings stay visible.
+  - Keyboard and screen-reader behavior stays as it is.
+  - The content script stays under 50 KB gz, and typing under 4 ms per input event.
+- Update e2e selectors and screenshots that change with the new markup. The full suite and
+  `npm run check` must pass.
+- **Exit:**
+  - Every surface uses the design system's tokens and components.
+  - Light and dark themes both match the artifacts.
+  - The budgets and accessibility checks above still pass.
+
+**Done:**
+
+- Tokens and components come from the kit's `ui.css`, vendored as `lib/kit.css`. Extension
+  pages link it, and in-page surfaces adopt it into their shadow roots (`lib/surface.ts`).
+  Category tints live with the categories in `packages/shared`.
+- In-page UI:
+  - The card has the kit layout: the category with its line sample, a "1 of N" count with
+    previous and next, the change, the reason, Accept and Dismiss, and quiet "Don't suggest
+    this again" and "Add to dictionary".
+  - The panel groups suggestions by category, with Accept all for correctness. Its rows use a
+    roving tab stop (arrows, Home and End move, Enter accepts, Delete dismisses).
+  - The badge shows a count, an error, a check in progress, the Cadenza mark when there's
+    nothing to fix, and paused when Cadenza is off here. The quiet states show only while the
+    field has focus.
+  - The open suggestion's words are tinted in the text.
+  - Surfaces follow the field's theme (light or dark by its background). They use the top
+    layer, and sit inside a modal dialog when the field is in one.
+- The toolbar icon shows the focused field's count, and normal, paused and error states.
+- The popup, settings and onboarding are rebuilt on the kit. The popup gains a provider
+  switcher and today's usage meter; settings gain a two-way provider picker and category rows
+  with their line samples.
+- Icons (16–128 plus paused and error), logos, and store art come from the kit. Store art is
+  in `store/`.
+- Deviations from the artifacts:
+  - Cards open on click, not hover (the Phase 4 decision stands).
+  - Underlines stay CSS text decorations (Highlight API, or the mirror overlay) rather than
+    drawn SVG. They have the same line styles, and keep the typing budget.
+- Content script: 17.8 KB gz. `npm run check`, the full e2e suite and the network site matrix
+  pass. Hands-on checks of the new UI on real sites are in `docs/testing.md`.
+
+### Phase 9 — Testing
 
 The automated suites cover what a test browser can reach. This phase is the hands-on pass
 that they can't do: a person in a real Chrome profile, with real sign-ins, keys and
@@ -448,7 +507,7 @@ keyboards. The checklist is `docs/testing.md`; results and bugs are recorded the
 - **Exit:** the checklist is complete, with no open bug that loses text, applies a wrong
   change, leaks text or keys, or breaks typing on a site in the matrix.
 
-### Phase 9 — Release
+### Phase 10 — Release
 
 - Chrome Web Store listing, icons, screenshots, privacy policy.
 - Permission justifications for review (content scripts on all sites, vendor API hosts,

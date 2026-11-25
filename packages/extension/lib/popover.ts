@@ -1,3 +1,5 @@
+import { adoptStyles, attach, layerFor, themeOf } from './surface';
+
 /**
  * The floating surface for the suggestion card and the field panel. One per document, in a
  * closed shadow root so pages can neither style nor read it; one popover is open at a time.
@@ -9,6 +11,8 @@ export type PopoverKind = 'card' | 'panel';
 
 export interface PopoverOptions {
   kind: PopoverKind;
+  /** The field it belongs to: sets the theme and where in the page it attaches. */
+  field: Element;
   /** Who opened it (a field session); only the owner updates or closes it. */
   owner: object;
   content: HTMLElement;
@@ -33,6 +37,7 @@ export function openPopover(options: PopoverOptions): void {
   closePopover();
   current = options;
   const el = ensureBox();
+  el.className = `cdz-root cdz-${options.kind}`;
   el.dataset.kind = options.kind;
   el.setAttribute(
     'aria-label',
@@ -43,7 +48,15 @@ export function openPopover(options: PopoverOptions): void {
     el.setAttribute('aria-describedby', 'cadenza-change cadenza-explanation');
   else el.removeAttribute('aria-describedby');
   el.replaceChildren(options.content);
-  if (!host?.isConnected) document.documentElement.append(host as HTMLElement);
+  const h = host as HTMLElement;
+  h.dataset.theme = themeOf(options.field);
+  attach(h, layerFor(options.field));
+  try {
+    // The top layer: above page dialogs and any z-index.
+    if (!h.matches(':popover-open')) h.showPopover();
+  } catch {
+    // No popover support; the host's z-index still applies.
+  }
   listen(true);
   place();
 }
@@ -68,13 +81,25 @@ export function closePopover(owner?: object): void {
   closing.onClose();
 }
 
-/** Move keyboard focus into the open popover: its main action, or its first button. */
-export function focusPopover(owner: object): void {
+/**
+ * Move keyboard focus into the open popover: a given panel row or button, else the main
+ * action (Accept on a card, the first row of the panel).
+ */
+export function focusPopover(owner: object, want: { row?: number; action?: string } = {}): void {
   if (current?.owner !== owner || !box) return;
+  const rows = Array.from(box.querySelectorAll<HTMLElement>('.cdz-panel__row'));
+  if (want.row !== undefined && rows.length > 0) {
+    const row = rows[Math.min(want.row, rows.length - 1)] as HTMLElement;
+    for (const r of rows) r.tabIndex = -1;
+    row.tabIndex = 0;
+    row.focus({ preventScroll: false });
+    return;
+  }
   const target =
-    box.querySelector<HTMLButtonElement>(
-      'button[data-action="accept-all"], button[data-action="accept"]',
-    ) ?? box.querySelector<HTMLButtonElement>('button');
+    (want.action ? box.querySelector<HTMLElement>(`button[data-action="${want.action}"]`) : null) ??
+    box.querySelector<HTMLElement>('button[data-action="accept"]:not(.cdz-icon-btn)') ??
+    rows[0] ??
+    box.querySelector<HTMLElement>('button');
   target?.focus({ preventScroll: true });
 }
 
@@ -90,23 +115,22 @@ export function repositionPopover(owner: object): void {
 function ensureBox(): HTMLDivElement {
   if (box) return box;
   host = document.createElement('cadenza-ui');
-  host.style.cssText =
-    'all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647;';
+  host.setAttribute('popover', 'manual');
   root = host.attachShadow({ mode: __CADENZA_E2E__ ? 'open' : 'closed' });
-  const style = document.createElement('style');
-  style.textContent = STYLE;
+  adoptStyles(root, STYLE);
   box = document.createElement('div');
-  box.className = 'popover';
   box.setAttribute('role', 'dialog');
   box.setAttribute('aria-label', 'Cadenza');
   // Keep focus (and the caret) in the field while the user clicks our buttons.
   box.addEventListener('mousedown', (e) => e.preventDefault());
-  // Tab cycles through the popover's buttons instead of leaving for the page.
+  // Tab cycles through what can take focus instead of leaving for the page.
   box.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab' || !box || !root) return;
-    const buttons = Array.from(box.querySelectorAll<HTMLButtonElement>('button'));
-    const first = buttons[0];
-    const last = buttons.at(-1);
+    const stops = Array.from(
+      box.querySelectorAll<HTMLElement>('button:not([tabindex="-1"]), [tabindex="0"]'),
+    );
+    const first = stops[0];
+    const last = stops.at(-1);
     const active = root.activeElement;
     if (!first || !last) return;
     if (e.shiftKey && active === first) {
@@ -117,7 +141,7 @@ function ensureBox(): HTMLDivElement {
       first.focus();
     }
   });
-  root.append(style, box);
+  root.append(box);
   return box;
 }
 
@@ -169,62 +193,33 @@ function listen(on: boolean): void {
   window[method]('resize', schedulePlace);
 }
 
+/** Popover rules the kit leaves to the product: layout inside the card and panel. */
 const STYLE = `
-  :host { all: initial; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
-    white-space: nowrap; }
-  .popover {
-    --bg: #ffffff; --fg: #1b1d29; --muted: #6b6f80; --border: #dfe1e8; --hover: #f2f3f7;
-    --accent: #242942; --accent-fg: #ffffff; --del: #b4232a; --ins: #18794e;
-    position: fixed; box-sizing: border-box; min-width: 240px; max-width: min(380px, calc(100vw - 16px));
-    max-height: min(480px, calc(100vh - 16px)); overflow: auto;
-    background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 8px 28px rgba(15, 17, 30, .18), 0 1px 3px rgba(15, 17, 30, .12);
-    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; text-align: left;
-    cursor: default; user-select: none; -webkit-user-select: none;
-  }
-  @media (prefers-color-scheme: dark) {
-    .popover { --bg: #1d1f29; --fg: #eceef4; --muted: #a0a4b5; --border: #343747; --hover: #282b38;
-      --accent: #e4e6f0; --accent-fg: #15161d; --del: #ff8589; --ins: #5fd39a; }
-  }
-  .popover[data-kind="card"] { padding: 12px 14px; }
-  .popover[data-kind="panel"] { width: 360px; padding: 0; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-    color: var(--muted); }
-  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-  .chip .subtype { font-weight: 400; }
-  .change { margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
-  .change del { color: var(--del); text-decoration: line-through; text-decoration-thickness: 1px; }
-  .change ins { color: var(--ins); text-decoration: none; font-weight: 600; }
-  .change .arrow { color: var(--muted); margin: 0 4px; }
-  .change .remove { color: var(--muted); font-size: 12px; margin-left: 6px; }
-  .explanation { margin: 6px 0 0; color: var(--muted); }
-  .actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-  button { font: inherit; border-radius: 6px; padding: 4px 12px; cursor: pointer;
-    border: 1px solid var(--border); background: transparent; color: var(--fg); }
-  button:hover { background: var(--hover); }
-  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-  button.primary:hover { opacity: .9; }
-  button.link { border: none; padding: 4px 2px; color: var(--muted); text-decoration: underline;
-    text-underline-offset: 2px; }
-  button.link:hover { background: transparent; color: var(--fg); }
-  button:focus-visible { outline: 2px solid #3e63dd; outline-offset: 1px; }
-  .error { margin: 8px 0 0; color: var(--del); }
-  .header { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; }
-  .header button { border: none; padding: 2px 6px; color: var(--muted); font-size: 16px; line-height: 1; }
-  .group { padding: 4px 0 8px; border-bottom: 1px solid var(--border); }
-  .group:last-child { border-bottom: none; }
-  .group-head { display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 14px 2px; }
-  .group-head button { padding: 2px 8px; font-size: 12px; }
-  .item { padding: 6px 14px; }
-  .item:hover { background: var(--hover); }
-  .item .change { margin: 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical; overflow: hidden; }
-  .item .explanation { margin-top: 2px; font-size: 12px; }
-  .item .actions { margin-top: 6px; }
-  .item button { padding: 2px 10px; font-size: 12px; }
-  .empty { padding: 16px 14px; color: var(--muted); }
-  .panel-error { padding: 8px 14px 0; color: var(--del); }
+  .cdz-card, .cdz-panel { cursor: default; user-select: none; -webkit-user-select: none; }
+  .cdz-contents { display: contents; }
+  .cdz-card__head .cdz-cat { margin-right: auto; }
+  .cdz-card__count { margin-left: 0; }
+  .cdz-card__count:empty { display: none; }
+  .cdz-change .cdz-arrow { color: var(--cdz-color-muted); font-family: var(--cdz-font-ui); }
+  .cdz-change .cdz-remove { color: var(--cdz-color-muted); font: var(--cdz-font-size-sm)/1 var(--cdz-font-ui); }
+  .cdz-card__never { display: flex; flex-wrap: wrap; gap: 0 12px; }
+  .cdz-card__never .cdz-btn + .cdz-btn { margin-left: 0; }
+  .cdz-error { color: var(--cdz-color-danger); font-size: var(--cdz-font-size-sm); line-height: var(--cdz-line-height-sm); }
+  .cdz-error[hidden] { display: none; }
+  .cdz-panel__head { display: flex; align-items: center; gap: var(--cdz-space-2);
+    padding: 10px 8px 10px 14px; font-weight: var(--cdz-weight-semibold); }
+  .cdz-panel__head .cdz-mark { color: var(--cdz-color-accent); flex: none; }
+  .cdz-panel__title { flex: 1; }
+  .cdz-panel__note { padding: 12px 14px; color: var(--cdz-color-muted); border-top: 1px solid var(--cdz-color-border); }
+  .cdz-panel__grouphead { display: flex; align-items: center; gap: var(--cdz-space-2); padding: 2px 14px 4px; }
+  .cdz-panel__count { color: var(--cdz-color-muted); font-size: var(--cdz-font-size-sm); }
+  .cdz-panel__grouphead .cdz-btn { margin-left: auto; height: 28px; }
+  .cdz-panel__rows { margin: 0; padding: 0; }
+  .cdz-panel__row { cursor: default; }
+  .cdz-panel__row:focus-visible { outline-offset: -1px; }
+  .cdz-panel__row .cdz-change del { font-size: var(--cdz-font-size-sm); }
+  .cdz-accept { color: var(--cdz-color-accent); }
+  .cdz-panel__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 14px;
+    border-top: 1px solid var(--cdz-color-border); color: var(--cdz-color-muted); font-size: var(--cdz-font-size-xs); }
+  .cdz-panel__foot span { margin-right: 6px; }
 `;

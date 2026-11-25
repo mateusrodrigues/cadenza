@@ -51,6 +51,7 @@ export class OverlayRenderer implements Renderer {
   private readonly untrack: () => void;
   private spans = new Map<string, { spans: HTMLSpanElement[]; suggestion: Suggestion }>();
   private lines: { key: string; el: HTMLDivElement }[] = [];
+  private active: string | null = null;
 
   constructor(private readonly field: HTMLTextAreaElement | HTMLInputElement) {
     this.host = document.createElement('cadenza-overlay');
@@ -69,7 +70,8 @@ export class OverlayRenderer implements Renderer {
         .map(
           (c) => `.u-${c.id} { text-decoration: underline ${c.lineStyle} ${c.color};
             text-decoration-thickness: 2px; text-underline-offset: 3px;
-            text-decoration-skip-ink: none; }`,
+            text-decoration-skip-ink: none; }
+          .u-${c.id}.a { background: ${c.tint}; border-radius: 2px; }`,
         )
         .join('\n')}`;
     this.mirror = document.createElement('div');
@@ -94,6 +96,32 @@ export class OverlayRenderer implements Renderer {
       this.renderFlat(suggestions);
     } else {
       this.renderLines(suggestions);
+    }
+    this.setActive(this.active);
+    this.position();
+  }
+
+  setActive(id: string | null): void {
+    this.active = id;
+    for (const [key, { spans }] of this.spans) {
+      for (const span of spans) span.classList.toggle('a', key === id);
+    }
+  }
+
+  reveal(id: string): void {
+    const span = this.spans.get(id)?.spans[0];
+    if (!span) return;
+    this.field.scrollIntoView({ block: 'nearest' });
+    this.position();
+    const f = this.field;
+    // The mirror scrolls with the field, so the span's offset is its place in the field.
+    const top = span.offsetTop;
+    if (top < f.scrollTop || top + span.offsetHeight > f.scrollTop + f.clientHeight) {
+      f.scrollTop = Math.max(0, top - f.clientHeight / 3);
+    }
+    const left = span.offsetLeft;
+    if (left < f.scrollLeft || left + span.offsetWidth > f.scrollLeft + f.clientWidth) {
+      f.scrollLeft = Math.max(0, left - f.clientWidth / 3);
     }
     this.position();
   }

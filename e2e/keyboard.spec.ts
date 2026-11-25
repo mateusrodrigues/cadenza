@@ -38,10 +38,10 @@ test('the shortcut opens the suggestion at the caret, Enter accepts it, focus re
   await expect.poll(() => focusedAction(page)).toBe('accept');
 
   // Screen readers get a sentence for the change; the visual layout is hidden from them.
-  await expect(card(page).locator('.sr')).toHaveText(
+  await expect(card(page).locator('.cdz-sr')).toHaveText(
     'Correctness: change “tomorow” to “tomorrow”.',
   );
-  const box = page.locator('cadenza-ui .popover');
+  const box = page.locator('cadenza-ui [role="dialog"]');
   await expect(box).toHaveAttribute('role', 'dialog');
   await expect(box).toHaveAttribute('aria-label', 'Cadenza suggestion');
 
@@ -97,13 +97,13 @@ test('pressed again, the shortcut moves from the card to the panel', async ({
   await shortcut(worker);
   await expect(card(page)).toHaveCount(1);
   await shortcut(worker);
-  const panel = page.locator('cadenza-ui .panel');
+  const panel = page.locator('cadenza-ui .cdz-panel');
   await expect(panel).toBeVisible();
-  await expect(page.locator('cadenza-ui .popover')).toHaveAttribute(
+  await expect(page.locator('cadenza-ui [role="dialog"]')).toHaveAttribute(
     'aria-label',
     'Cadenza suggestions',
   );
-  await expect.poll(() => focusedAction(page)).toBe('accept-all');
+  await expect.poll(() => focusedAction(page)).toBe('row');
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   await expect(field).toBeFocused();

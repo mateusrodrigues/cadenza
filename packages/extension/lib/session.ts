@@ -2,7 +2,7 @@ import { splitParagraphs } from '@cadenza/engine/paragraphs';
 import type { Category, Paragraph, Suggestion } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { applyToEditable, applyToTextControl, type Edit } from './apply';
-import { FieldBadge } from './badge';
+import { type BadgeState, FieldBadge } from './badge';
 import { dictionaryWord, withoutDictionary } from './dictionary';
 import { mapThroughEdit } from './edit-map';
 import { type FieldElement, isTextControl } from './fields';
@@ -14,6 +14,8 @@ import type {
   CheckResponse,
   ForgetMessage,
   IgnoreMessage,
+  OffReason,
+  TabStateMessage,
 } from './messages';
 import { timed } from './perf';
 import {
@@ -29,7 +31,7 @@ import { OverlayRenderer } from './render-overlay';
 import type { Renderer } from './renderer';
 import { pageSite } from './sites';
 import { buildTextMap, offsetOf, type TextMap } from './text-map';
-import { buildCard, buildPanel } from './views';
+import { buildCard, buildPanel, type PanelNote } from './views';
 
 const DEBOUNCE_MS = 700;
 const SLOW_DEBOUNCE_MS = 1500;
@@ -64,7 +66,7 @@ export class FieldSession {
   /** Words added to the dictionary from this field; the worker filters the rest. */
   private readonly words: string[] = [];
   /** Cadenza is off for this page (or not set up): no checks until settings change. */
-  private off = false;
+  private off: OffReason | null = null;
   private observer: MutationObserver | null = null;
   private lastError: string | null = null;
   private panelError: string | null = null;
@@ -81,6 +83,11 @@ export class FieldSession {
       this.schedule();
     });
   private readonly onBlur = () => this.schedule(0);
+  private readonly onFocusChange = () => {
+    const focused = this.field.matches(':focus-within');
+    this.badge.setFocused(focused);
+    if (focused) this.report(true);
+  };
   private readonly onClick = (event: Event) => {
     const e = event as MouseEvent;
     if (!e.isTrusted || e.button !== 0 || e.detail > 1 || this.hasSelection()) return;
@@ -95,6 +102,8 @@ export class FieldSession {
     this.badge = new FieldBadge(field, () => this.togglePanel());
     field.addEventListener('input', this.onInput);
     field.addEventListener('blur', this.onBlur);
+    field.addEventListener('focusin', this.onFocusChange);
+    field.addEventListener('focusout', this.onFocusChange);
     field.addEventListener('click', this.onClick);
     if (!isTextControl(field)) {
       // Editors that own their model (ProseMirror, Lexical…) cancel the browser's editing and
@@ -102,7 +111,29 @@ export class FieldSession {
       this.observer = new MutationObserver(this.onInput);
       this.observer.observe(field, { characterData: true, childList: true, subtree: true });
     }
+    this.badge.setFocused(field.matches(':focus-within'));
     this.schedule(0);
+  }
+
+  private badgeState: BadgeState = { kind: 'idle' };
+  private reported = '';
+
+  private setBadge(state: BadgeState): void {
+    this.badgeState = state;
+    this.badge.set(state);
+    this.report();
+  }
+
+  /** Tell the worker what the focused field shows, for the toolbar icon. */
+  private report(force = false): void {
+    if (!this.field.matches(':focus-within')) return;
+    const s = this.badgeState;
+    const count = s.kind === 'done' ? s.suggestions.length : 0;
+    const key = `${s.kind}:${count}`;
+    if (key === this.reported && !force) return;
+    this.reported = key;
+    const message: TabStateMessage = { type: 'cadenza/tab-state', state: s.kind, count };
+    browser.runtime.sendMessage(message).catch(() => {});
   }
 
   private readText(): { text: string; map?: TextMap } {
@@ -156,32 +187,30 @@ export class FieldSession {
       site: pageSite(),
     };
 
-    this.badge.set({ kind: 'checking' });
+    this.setBadge({ kind: 'checking' });
     let response: CheckResponse;
     try {
       response = (await browser.runtime.sendMessage(message)) as CheckResponse;
     } catch {
       // Extension reloaded or worker unavailable; the next edit retries.
-      this.badge.set({ kind: 'idle' });
+      this.setBadge({ kind: 'idle' });
       return;
     }
     // A newer check superseded this one; it owns the badge now.
     if (seq !== this.requestSeq) return;
     if (!response.ok) {
       this.lastError = response.cancelled ? null : response.error.message;
-      this.badge.set(
-        this.lastError ? { kind: 'error', message: this.lastError } : { kind: 'idle' },
-      );
+      this.setBadge(this.lastError ? { kind: 'error', message: this.lastError } : { kind: 'idle' });
       this.refreshPanel();
       return;
     }
     this.lastError = null;
     if (response.off) {
-      this.off = true;
+      this.off = response.off;
       this.settledText = null;
-      closePopover(this);
+      if (openKind(this) === 'card') closePopover(this);
       this.draw([], this.readText().text);
-      this.badge.set({ kind: 'idle' });
+      this.setBadge({ kind: 'paused', message: offMessage(response.off) });
       return;
     }
     this.slow = response.slow;
@@ -193,11 +222,11 @@ export class FieldSession {
     this.draw(mapThroughEdit(response.suggestions, text, now.text), now.text, now.map);
     if (response.pending > 0) {
       // Slow mode checks one paragraph per request; continue with the rest.
-      this.badge.set({ kind: 'checking' });
+      this.setBadge({ kind: 'checking' });
       if (!edited) this.schedule(0);
     } else {
       if (!edited) this.settledText = text;
-      this.badge.set({ kind: 'done', suggestions: this.drawn });
+      this.setBadge({ kind: 'done', suggestions: this.drawn });
     }
   }
 
@@ -215,7 +244,7 @@ export class FieldSession {
     );
     this.drawnText = text;
     this.renderer.render(this.drawn, map);
-    if (this.badge.kind === 'done') this.badge.set({ kind: 'done', suggestions: this.drawn });
+    if (this.badge.kind === 'done') this.setBadge({ kind: 'done', suggestions: this.drawn });
     if (openKind(this) === 'card') {
       // The card follows its text, and goes when an edit removes it.
       if (this.drawn.some((s) => s.id === this.cardFor)) repositionPopover(this);
@@ -234,10 +263,19 @@ export class FieldSession {
       this.renderer.rectsOf(s.id).findIndex((r) => hits(r, x, y)),
     );
     this.cardFor = s.id;
+    const order = this.inOrder();
     openPopover({
       kind: 'card',
       owner: this,
+      field: this.field,
       content: buildCard(s, {
+        close: () => closePopover(this),
+        nav: {
+          index: order.findIndex((d) => d.id === s.id),
+          total: order.length,
+          prev: () => this.step(s.id, -1),
+          next: () => this.step(s.id, 1),
+        },
         accept: async () => {
           const ok = await this.accept([s]);
           if (ok) closePopover(this);
@@ -266,9 +304,43 @@ export class FieldSession {
       },
       onClose: () => {
         this.cardFor = null;
+        this.renderer.setActive(null);
         this.restoreFocus();
       },
     });
+    this.renderer.setActive(s.id);
+  }
+
+  /** Suggestions in reading order (the card's "4 of 6" and its arrows). */
+  private inOrder(): Suggestion[] {
+    return [...this.drawn].sort((a, b) => a.start - b.start);
+  }
+
+  /** The card's previous and next buttons: open the neighbouring suggestion's card. */
+  private step(fromId: string, by: number): void {
+    const order = this.inOrder();
+    const i = order.findIndex((d) => d.id === fromId);
+    const target = order[(i + by + order.length) % order.length];
+    if (i < 0 || !target) return;
+    this.renderer.reveal(target.id);
+    const rect = this.renderer.rectsOf(target.id)[0];
+    if (!rect) return;
+    this.swapPopover(() => this.openCard(target, rect.left + 1, rect.top + rect.height / 2), {
+      action: by < 0 ? 'prev' : 'next',
+    });
+  }
+
+  /** Replace the open popover, keeping keyboard focus inside it when it was there. */
+  private swapPopover(open: () => void, focus: { row?: number; action?: string } = {}): void {
+    const back = this.returnFocus;
+    this.returnFocus = null;
+    open();
+    if (!openKind(this)) {
+      back?.();
+      return;
+    }
+    this.returnFocus = back;
+    if (back) focusPopover(this, focus);
   }
 
   private togglePanel(): void {
@@ -280,6 +352,7 @@ export class FieldSession {
     openPopover({
       kind: 'panel',
       owner: this,
+      field: this.field,
       content: this.panelView(),
       anchor: () => (this.field.isConnected ? this.badge.rect() : null),
       align: 'end',
@@ -390,9 +463,19 @@ export class FieldSession {
           return ok;
         },
         close: () => closePopover(this),
+        focusRow: (index) => {
+          if (openKind(this) === 'panel') focusPopover(this, { row: index });
+        },
       },
-      this.panelError ?? this.lastError,
+      this.panelNote(),
     );
+  }
+
+  private panelNote(): PanelNote {
+    const error = this.panelError ?? this.lastError;
+    if (error) return { text: error, error: true };
+    if (this.off) return { text: offMessage(this.off) };
+    return null;
   }
 
   // ---- Actions (each starts from a trusted click; see views.ts) ------------------------------
@@ -445,7 +528,7 @@ export class FieldSession {
     // The worker's lists are the truth now (a rule may have been removed in settings).
     this.ignored.clear();
     this.words.length = 0;
-    this.off = false;
+    this.off = null;
     this.settledText = null;
     this.schedule(0);
   }
@@ -455,6 +538,8 @@ export class FieldSession {
     cancelAnimationFrame(this.inputFrame);
     this.field.removeEventListener('input', this.onInput);
     this.field.removeEventListener('blur', this.onBlur);
+    this.field.removeEventListener('focusin', this.onFocusChange);
+    this.field.removeEventListener('focusout', this.onFocusChange);
     this.field.removeEventListener('click', this.onClick);
     this.observer?.disconnect();
     closePopover(this);
@@ -469,4 +554,12 @@ function caretParagraph(paragraphs: Paragraph[], caret: number | null): string[]
   if (caret === null) return [];
   const p = paragraphs.find((p) => caret >= p.start && caret <= p.start + p.text.length);
   return p ? [p.pid] : [];
+}
+
+/** What the badge and panel say when Cadenza is off for a field. */
+function offMessage(reason: OffReason): string {
+  if (reason === 'site')
+    return 'Off on this site. Turn it back on from the Cadenza toolbar button.';
+  if (reason === 'disabled') return 'Cadenza is switched off. Turn it on from the toolbar button.';
+  return 'Cadenza isn’t set up yet. Choose a provider in its settings.';
 }

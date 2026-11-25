@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cadenza settings</title>
     <meta name="manifest.open_in_tab" content="true" />
+    <link rel="stylesheet" href="../../lib/kit.css" />
     <link rel="stylesheet" href="../../lib/ui.css" />
   </head>
   <body class="options">
     <main>
-      <h1>Cadenza settings</h1>
+      <header class="page-head">
+        <img class="lockup lockup-light" src="/logo/lockup-on-light.svg" alt="Cadenza" />
+        <img class="lockup lockup-dark" src="/logo/lockup-on-dark.svg" alt="Cadenza" />
+        <h1>Settings</h1>
+      </header>
 
       <form id="locked" class="unlock" hidden>
         <p>Your API keys are locked. Enter your passphrase to change providers.</p>
@@ -29,11 +34,12 @@
           your own computer. API keys are stored only in this browser.
         </p>
         <ul id="provider-list" class="provider-list"></ul>
-        <button id="add-provider" type="button">Add provider</button>
+        <button id="add-provider" type="button" class="primary">Add provider</button>
 
         <form id="editor" class="editor" hidden>
           <h3 id="editor-title">Add provider</h3>
-          <label>Provider <select id="preset"></select></label>
+          <div id="preset-picker" class="picker"></div>
+          <label hidden>Provider <select id="preset" tabindex="-1"></select></label>
           <label>Name <input id="name" type="text" required /></label>
           <label>
             Endpoint URL
@@ -74,7 +80,7 @@
         <h2 id="writing-heading">Writing</h2>
         <label>English variant <select id="dialect"></select></label>
         <fieldset id="categories">
-          <legend>Suggest changes for</legend>
+          <legend>Categories</legend>
         </fieldset>
         <label>Tone you're aiming for <select id="formality"></select></label>
         <label>Readers <select id="audience"></select></label>

@@ -45,11 +45,11 @@ export async function underline(page: Page, field: string, word: string) {
 export async function clickUnderline(page: Page, field: string, word: string) {
   const { x, y } = await underline(page, field, word);
   await page.mouse.click(x, y);
-  await expect(page.locator('cadenza-ui .card')).toBeVisible();
+  await expect(page.locator('cadenza-ui .cdz-card')).toBeVisible();
 }
 
-export const card = (page: Page) => page.locator('cadenza-ui .card');
+export const card = (page: Page) => page.locator('cadenza-ui .cdz-card');
 export const cardButton = (page: Page, action: string) =>
-  page.locator(`cadenza-ui .card button[data-action="${action}"]`);
+  page.locator(`cadenza-ui .cdz-card button[data-action="${action}"]`);
 export const overlayCount = (page: Page, n: number) =>
   expect(page.locator(`cadenza-overlay[data-count="${n}"]`)).toHaveCount(1);

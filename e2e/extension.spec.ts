@@ -92,7 +92,7 @@ test('checks rich editors that turn spellcheck off (Gmail), but not code editors
 test('popup shows the active provider', async ({ context, extensionId }) => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  await expect(page.locator('#provider')).toHaveText('Test rules (no AI)');
+  await expect(page.locator('#provider option:checked')).toHaveText('Test rules (no AI)');
   await expect(page.locator('#enabled')).toBeChecked();
 });
 

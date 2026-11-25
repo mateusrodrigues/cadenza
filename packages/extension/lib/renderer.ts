@@ -11,5 +11,9 @@ export interface Renderer {
   hitTest(x: number, y: number): Suggestion | null;
   /** Where a drawn suggestion's text is on screen, one rect per line; only visible parts. */
   rectsOf(id: string): DOMRect[];
+  /** Tint the suggestion whose card is open (null for none); kept across renders. */
+  setActive(id: string | null): void;
+  /** Scroll the field (and page) so a drawn suggestion is in view. */
+  reveal(id: string): void;
   destroy(): void;
 }

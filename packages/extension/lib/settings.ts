@@ -192,3 +192,8 @@ export function migrate(stored: Record<string, unknown> | undefined): Settings {
   }
   return settings;
 }
+
+/** Providers that bill per use (not local models or the test rules); the daily limit counts these. */
+export function isHosted(p: SavedProvider): boolean {
+  return p.kind !== 'mock' && !getPreset(p.presetId)?.local && !isLocalURL(p.baseURL);
+}

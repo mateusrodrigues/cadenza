@@ -245,11 +245,15 @@ test('the badge opens a panel; Accept all fixes every correctness issue in one u
   await overlayCount(page, 3);
 
   await page.locator('cadenza-badge').click();
-  const panel = page.locator('cadenza-ui .panel');
+  const panel = page.locator('cadenza-ui .cdz-panel');
   await expect(panel).toBeVisible();
-  await expect(panel.locator('.header')).toContainText('3 suggestions');
-  await expect(panel.locator('.group[data-category="correctness"] .item')).toHaveCount(2);
-  await expect(panel.locator('.group[data-category="style"] .item')).toHaveCount(1);
+  await expect(panel.locator('.cdz-panel__head')).toContainText('3 suggestions');
+  await expect(
+    panel.locator('.cdz-panel__group[data-category="correctness"] .cdz-panel__row'),
+  ).toHaveCount(2);
+  await expect(
+    panel.locator('.cdz-panel__group[data-category="style"] .cdz-panel__row'),
+  ).toHaveCount(1);
   await expect(field).toBeFocused();
   await page.screenshot({
     path: 'test-results/panel.png',
@@ -259,11 +263,11 @@ test('the badge opens a panel; Accept all fixes every correctness issue in one u
   await panel.locator('button[data-action="accept-all"]').click();
   await expect(field).toHaveValue('Read the book tomorrow, it is very unique.');
   // The panel stays open and now lists what's left.
-  await expect(panel.locator('.item')).toHaveCount(1);
-  await expect(panel.locator('.header')).toContainText('1 suggestion');
+  await expect(panel.locator('.cdz-panel__row')).toHaveCount(1);
+  await expect(panel.locator('.cdz-panel__head')).toContainText('1 suggestion');
 
-  await panel.locator('.item button[data-action="dismiss"]').click();
-  await expect(panel.locator('.empty')).toBeVisible();
+  await panel.locator('.cdz-panel__row button[data-action="dismiss"]').click();
+  await expect(panel.locator('.cdz-panel__note')).toHaveText('No suggestions. Nice writing.');
   await overlayCount(page, 0);
 
   await page.keyboard.press('Escape');

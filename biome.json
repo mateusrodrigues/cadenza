@@ -8,7 +8,9 @@
       "!**/.wxt",
       "!**/test-results",
       "!**/playwright-report",
-      "!**/.output-e2e"
+      "!**/.output-e2e",
+      "!packages/extension/lib/kit.css",
+      "!packages/extension/public/logo"
     ]
   },
   "formatter": {

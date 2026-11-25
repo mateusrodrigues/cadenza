@@ -1,4 +1,4 @@
-# Testing checklist (Phase 8)
+# Testing checklist (Phase 9)
 
 Hands-on checks the automated suites can't do. They need a real Chrome profile, sign-ins,
 keys or a person at the keyboard. Load the normal build (`npm run build`, then load
@@ -66,10 +66,21 @@ the provider".
 - [ ] Remap the shortcut in `chrome://extensions/shortcuts`; settings show the new keys.
 - [ ] A screen reader (Orca, NVDA or VoiceOver) reads the change as a sentence on the card,
       and reads each panel button together with its change.
+- [ ] In the panel, the arrow keys move between rows, Enter accepts and Delete dismisses; the
+      screen reader reads each row's change.
+- [ ] The card's previous and next buttons step through the field's suggestions in reading
+      order, scrolling the field to each one.
 
 ## Display
 
 - [ ] Dark mode: card, panel, badge, popup and settings are readable.
+- [ ] On a dark site (for example, GitHub's dark theme), the card, panel and badge follow the
+      field and use the dark theme.
+- [ ] The toolbar icon shows the count for the focused field, the paused icon on a site that
+      is turned off and when Cadenza is switched off, and the error icon after a failed check.
+      It resets when the tab navigates.
+- [ ] A field inside a modal dialog (for example, a GitHub or Jira dialog): the card and panel
+      show above the dialog and take clicks.
 - [ ] Page zoom at 80%, 125% and 200%: underlines sit on their words.
 - [ ] Forced colors (high contrast): underlines and buttons are visible.
 - [ ] A right-to-left page (for example, Hebrew Wikipedia's edit box): nothing breaks.

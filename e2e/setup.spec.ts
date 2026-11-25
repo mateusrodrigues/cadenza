@@ -65,9 +65,9 @@ test('a site turned off in settings shows nothing until turned back on', async (
   await options.getByRole('button', { name: 'Turn off' }).click();
   await expect(options.locator('#sites-list li')).toHaveText(/127\.0\.0\.1/);
 
-  // The open field clears without any typing; the badge goes quiet.
+  // The open field clears without any typing; the badge shows Cadenza is paused here.
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(0);
-  await expect(page.locator('cadenza-badge')).toHaveAttribute('data-state', 'idle');
+  await expect(page.locator('cadenza-badge')).toHaveAttribute('data-state', 'paused');
 
   await options.getByRole('button', { name: 'Turn Cadenza on for 127.0.0.1' }).click();
   await expect(options.locator('#sites-list li')).toHaveCount(0);

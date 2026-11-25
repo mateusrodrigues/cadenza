@@ -29,10 +29,19 @@ export type CheckResponse =
       pending: number;
       /** The active provider is in slow mode: debounce longer. */
       slow: boolean;
-      /** Cadenza is off here (globally, for this site, or not set up): show nothing. */
-      off?: boolean;
+      /** Cadenza is off here (switched off, turned off for this site, or not set up). */
+      off?: OffReason;
     }
   | { ok: false; error: WorkerError; cancelled: boolean };
+
+export type OffReason = 'disabled' | 'site' | 'setup';
+
+/** What the focused field shows, for the toolbar icon and its count. */
+export interface TabStateMessage {
+  type: 'cadenza/tab-state';
+  state: 'idle' | 'checking' | 'done' | 'error' | 'paused';
+  count: number;
+}
 
 export interface ForgetMessage {
   type: 'cadenza/forget';
@@ -111,5 +120,10 @@ export interface AllowOriginMessage {
 
 export type AllowOriginResponse = { ok: true } | { ok: false; error: WorkerError };
 
-export type ContentMessage = CheckMessage | ForgetMessage | IgnoreMessage | AddWordMessage;
+export type ContentMessage =
+  | CheckMessage
+  | ForgetMessage
+  | IgnoreMessage
+  | AddWordMessage
+  | TabStateMessage;
 export type PageMessage = StatusMessage | ListModelsMessage | TestMessage | AllowOriginMessage;

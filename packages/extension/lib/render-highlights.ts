@@ -15,6 +15,8 @@ const STYLE_ID = 'cadenza-highlight-style';
  */
 export class HighlightRenderer implements Renderer {
   private ranges = new Map<Range, Suggestion>();
+  private active: string | null = null;
+  private activeRange: { range: Range; category: Category } | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -32,7 +34,28 @@ export class HighlightRenderer implements Renderer {
       this.ranges.set(range, s);
       highlightFor(s.category).add(range);
     }
+    this.setActive(this.active);
     this.onCount(this.ranges.size);
+  }
+
+  setActive(id: string | null): void {
+    if (this.activeRange) {
+      activeFor(this.activeRange.category).delete(this.activeRange.range);
+      this.activeRange = null;
+    }
+    this.active = id;
+    for (const [range, s] of this.ranges) {
+      if (s.id !== id) continue;
+      activeFor(s.category).add(range);
+      this.activeRange = { range, category: s.category };
+    }
+  }
+
+  reveal(id: string): void {
+    if (this.rectsOf(id).length > 0) return;
+    for (const [range, s] of this.ranges) {
+      if (s.id === id) range.startContainer.parentElement?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   hitTest(x: number, y: number): Suggestion | null {
@@ -51,6 +74,8 @@ export class HighlightRenderer implements Renderer {
   }
 
   private clear(): void {
+    if (this.activeRange) activeFor(this.activeRange.category).delete(this.activeRange.range);
+    this.activeRange = null;
     for (const [range, s] of this.ranges) highlightFor(s.category).delete(range);
     this.ranges.clear();
   }
@@ -65,8 +90,11 @@ function highlightName(c: Category): string {
   return `cadenza-${c}`;
 }
 
-function highlightFor(c: Category): Highlight {
-  const name = highlightName(c);
+function activeFor(c: Category): Highlight {
+  return highlightFor(c, `cadenza-active-${c}`);
+}
+
+function highlightFor(c: Category, name = highlightName(c)): Highlight {
   let h = CSS.highlights.get(name);
   if (!h) {
     h = new Highlight();
@@ -87,7 +115,8 @@ function ensureStyle(root: Node): void {
   style.id = STYLE_ID;
   style.textContent = CATEGORY_IDS.map((id) => {
     const c = CATEGORIES[id];
-    return `::highlight(${highlightName(id)}) { text-decoration: underline ${c.lineStyle} ${c.color}; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }`;
+    return `::highlight(${highlightName(id)}) { text-decoration: underline ${c.lineStyle} ${c.color}; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+::highlight(cadenza-active-${id}) { background-color: ${c.tint}; }`;
   }).join('\n');
   if (target instanceof ShadowRoot) target.append(style);
   else (document.head ?? document.documentElement).append(style);

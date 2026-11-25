@@ -9,6 +9,7 @@ import {
 import { CATEGORIES, CATEGORY_IDS, type Dialect, type Goals } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { explainError } from '../../lib/connect';
+import { lineSample } from '../../lib/icons';
 import type {
   ListModelsResponse,
   PageMessage,
@@ -143,7 +144,49 @@ function renderList() {
 
 // ---- Editor ------------------------------------------------------------------------------
 
+/** The provider picker: two columns of choices driving the (hidden) preset select. */
+function presetPicker() {
+  const column = (legend: string, presets: ProviderPreset[]) => {
+    const set = document.createElement('fieldset');
+    const l = document.createElement('legend');
+    l.textContent = legend;
+    set.append(l);
+    for (const p of presets) {
+      const label = document.createElement('label');
+      const radio = Object.assign(document.createElement('input'), {
+        type: 'radio',
+        name: 'preset-choice',
+        value: p.id,
+      });
+      radio.addEventListener('change', () => {
+        el.preset.value = p.id;
+        el.preset.dispatchEvent(new Event('change'));
+      });
+      label.append(radio, p.id === 'custom' ? 'Custom endpoint' : p.label);
+      set.append(label);
+    }
+    return set;
+  };
+  $('preset-picker').replaceChildren(
+    column(
+      'On this computer',
+      PRESETS.filter((p) => p.local || p.id === 'custom'),
+    ),
+    column(
+      'Hosted, with your key',
+      PRESETS.filter((p) => !p.local && p.id !== 'custom'),
+    ),
+  );
+}
+
+function syncPicker() {
+  for (const r of document.querySelectorAll<HTMLInputElement>('input[name="preset-choice"]')) {
+    r.checked = r.value === el.preset.value;
+  }
+}
+
 function presetOptions() {
+  presetPicker();
   const group = (label: string, presets: ProviderPreset[]) => {
     const g = document.createElement('optgroup');
     g.label = label;
@@ -171,6 +214,7 @@ function openEditor(provider: SavedProvider, isNew: boolean) {
   el.title.textContent = isNew ? 'Add provider' : `Edit ${provider.name}`;
   el.editor.dataset.new = String(isNew);
   el.preset.value = provider.presetId;
+  syncPicker();
   fillEditor();
   setModels(editing.model ? [{ id: editing.model, label: editing.model }] : [], editing.model);
   say('');
@@ -353,16 +397,17 @@ function renderWriting() {
     });
   const boxes = CATEGORY_IDS.map((id) => {
     const label = document.createElement('label');
-    label.className = 'check';
+    label.className = 'cat-row';
     const box = Object.assign(document.createElement('input'), {
       type: 'checkbox',
       checked: settings.categories.includes(id),
       value: id,
     });
-    const swatch = document.createElement('span');
-    swatch.className = 'swatch';
-    swatch.style.background = CATEGORIES[id].color;
-    label.append(box, swatch, ` ${CATEGORIES[id].label}`);
+    box.setAttribute('role', 'switch');
+    const name = document.createElement('span');
+    name.className = `cdz-cat cdz-cat--${id}`;
+    name.append(lineSample(id), CATEGORIES[id].label);
+    label.append(name, box);
     box.addEventListener('change', async () => {
       const chosen = CATEGORY_IDS.filter(
         (c) => el.categories.querySelector<HTMLInputElement>(`input[value="${c}"]`)?.checked,
@@ -398,8 +443,12 @@ async function applyLockState() {
 async function renderShortcut() {
   const text = document.getElementById('shortcut-text') as HTMLElement;
   const command = (await browser.commands.getAll()).find((c) => c.name === 'open-suggestion');
-  text.textContent = command?.shortcut
-    ? `Keyboard: press ${command.shortcut} in a text field to open the suggestion at the cursor; Escape closes it.`
+  const keys = command?.shortcut
+    ?.split('+')
+    .map((k) => ({ Period: '.', Comma: ',' })[k] ?? k)
+    .join('+');
+  text.textContent = keys
+    ? `Keyboard: press ${keys} in a text field to open the suggestion at the cursor; Escape closes it.`
     : 'Keyboard: set a shortcut to open the suggestion at the cursor.';
   document.getElementById('shortcut-change')?.addEventListener('click', () => {
     void browser.tabs.create({ url: 'chrome://extensions/shortcuts' });
