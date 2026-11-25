@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Welcome to Cadenza</title>
+    <link rel="stylesheet" href="../../lib/ui.css" />
+  </head>
+  <body class="options onboarding">
+    <main>
+      <header class="welcome">
+        <img src="/icon/48.png" alt="" width="36" height="36" />
+        <h1>Welcome to Cadenza</h1>
+      </header>
+      <p class="lead">
+        Cadenza suggests fixes and improvements while you write in any text field. First, choose
+        where your writing is checked.
+      </p>
+
+      <section id="step-choose" aria-label="Choose how to check">
+        <div class="choices">
+          <button id="choose-hosted" type="button" class="choice">
+            <strong>Use an API key</strong>
+            <span>
+              Your text goes to the AI provider you pick, with your own key. Fast; the provider
+              bills you for what you use.
+            </span>
+          </button>
+          <button id="choose-local" type="button" class="choice">
+            <strong>Use a model on this computer</strong>
+            <span>
+              Your text never leaves this computer. Needs a model server running here; slower
+              without a fast graphics card.
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <form id="step-hosted" class="editor" hidden>
+        <h2>Connect a provider</h2>
+        <label>Provider <select id="hosted-preset"></select></label>
+        <label>
+          <span>API key <a id="key-link" href="about:blank" target="_blank" rel="noopener">Get a key</a></span>
+          <input id="hosted-key" type="password" autocomplete="off" spellcheck="false" />
+        </label>
+        <div class="actions">
+          <button type="submit" class="primary">Connect</button>
+          <button type="button" class="back">Back</button>
+        </div>
+      </form>
+
+      <section id="step-local" class="editor" hidden>
+        <h2>Find a model server</h2>
+        <p id="scan-status" class="muted" role="status">Looking for model servers on this computer…</p>
+        <ul id="found" class="provider-list"></ul>
+        <div id="setup-help" hidden>
+          <p>No model server is running. Set one up, then look again:</p>
+          <ul class="steps">
+            <li>
+              <strong>Ollama:</strong> install it from
+              <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com</a>,
+              then download a model from its library.
+            </li>
+            <li>
+              <strong>LM Studio:</strong> install it from
+              <a href="https://lmstudio.ai" target="_blank" rel="noopener">lmstudio.ai</a>,
+              download a model, and start the server in the Developer tab.
+            </li>
+          </ul>
+        </div>
+        <form id="custom-form" class="inline">
+          <input id="custom-url" type="url" aria-label="Server address"
+            placeholder="Other address, e.g. http://localhost:8080/v1" spellcheck="false" />
+          <button type="submit">Connect</button>
+        </form>
+        <div class="actions">
+          <button id="rescan" type="button">Look again</button>
+          <button type="button" class="back">Back</button>
+        </div>
+      </section>
+
+      <section id="step-model" class="editor" hidden>
+        <h2 id="model-heading">Choose a model</h2>
+        <label>Model <select id="model"></select></label>
+        <div class="actions">
+          <button id="finish" type="button" class="primary">Test and finish</button>
+          <button type="button" class="back">Back</button>
+        </div>
+      </section>
+
+      <p id="message" role="status"></p>
+      <button id="fix" type="button" hidden></button>
+
+      <section id="step-done" hidden>
+        <h2>You're set</h2>
+        <p>
+          Try it: type a sentence with a mistake below. Cadenza underlines what it would change;
+          click an underline to see the suggestion.
+        </p>
+        <textarea id="try" rows="4" aria-label="Try Cadenza here"></textarea>
+        <p class="muted">
+          Cadenza now works in text fields on any site. The toolbar icon turns it off for a site;
+          <button id="open-settings" type="button" class="link">Settings</button> has your dictionary, goals and usage.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

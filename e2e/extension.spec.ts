@@ -69,6 +69,26 @@ test('stays off password fields and opted-out fields', async ({ context }) => {
   await expect(page.locator('cadenza-overlay')).toHaveCount(0);
 });
 
+test('checks rich editors that turn spellcheck off (Gmail), but not code editors', async ({
+  context,
+}) => {
+  const page = await context.newPage();
+  await page.goto(PAGE_URL);
+  const correctness = () =>
+    page.evaluate(() => CSS.highlights.get('cadenza-correctness')?.size ?? 0);
+  for (const id of ['#code-mono', '#code-cm']) {
+    await page.locator(id).click();
+    await page.keyboard.type('Read teh book.');
+  }
+  await page.waitForTimeout(1500);
+  expect(await correctness()).toBe(0);
+  await expect(page.locator('cadenza-badge')).toHaveCount(0);
+
+  await page.locator('#mail-body').click();
+  await page.keyboard.type('Read teh book.');
+  await expect.poll(correctness).toBe(1);
+});
+
 test('popup shows the active provider', async ({ context, extensionId }) => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/popup.html`);

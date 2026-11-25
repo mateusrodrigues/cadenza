@@ -15,10 +15,26 @@
         <span></span>
       </label>
     </header>
+
+    <form id="unlock" class="unlock" hidden>
+      <p>Enter your passphrase to use your saved API keys.</p>
+      <input id="passphrase" type="password" aria-label="Passphrase" autocomplete="current-password" />
+      <button type="submit" class="primary">Unlock</button>
+      <p id="unlock-message" class="error-text" role="status"></p>
+    </form>
+
     <section class="status">
+      <div class="row" id="site-row" hidden>
+        <span id="site-label">Check on this site</span>
+        <label class="switch">
+          <input id="site-enabled" type="checkbox" aria-labelledby="site-label" />
+          <span></span>
+        </label>
+      </div>
       <div class="row"><span class="muted">Provider</span><span id="provider">…</span></div>
       <div class="row"><span class="muted">Model</span><span id="model">…</span></div>
     </section>
+    <button id="set-up" type="button" class="primary" hidden>Set up Cadenza</button>
     <button id="open-options" type="button">Settings</button>
     <script type="module" src="./main.ts"></script>
   </body>

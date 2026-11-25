@@ -1,5 +1,7 @@
+import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { type FieldElement, resolveField } from '../lib/fields';
+import type { RefreshMessage } from '../lib/messages';
 import { FieldSession } from '../lib/session';
 
 export default defineContentScript({
@@ -27,6 +29,14 @@ export default defineContentScript({
       }
     }, 5000);
 
+    // The worker asks for a recheck when settings change (site turned on, word added…).
+    const onMessage = (message: unknown, sender: { id?: string }) => {
+      if (sender.id !== browser.runtime.id) return;
+      if ((message as RefreshMessage | null)?.type !== 'cadenza/refresh') return;
+      for (const [field, session] of sessions) if (field.isConnected) session.refresh();
+    };
+    browser.runtime.onMessage.addListener(onMessage);
+
     document.addEventListener('focusin', onFocusIn, true);
     // A field focused before this script loaded (autofocus, or a quick click) sent its
     // focusin already.
@@ -34,6 +44,7 @@ export default defineContentScript({
     ctx.onInvalidated(() => {
       clearInterval(sweep);
       document.removeEventListener('focusin', onFocusIn, true);
+      browser.runtime.onMessage.removeListener(onMessage);
       for (const s of sessions.values()) s.destroy();
       sessions.clear();
     });

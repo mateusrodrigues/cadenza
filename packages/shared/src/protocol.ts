@@ -10,11 +10,21 @@ export interface Paragraph {
 
 export type Dialect = 'en-US' | 'en-GB' | 'en-CA' | 'en-AU';
 
+/** What the writer is aiming for. 'any' leaves it to the model's reading of the text. */
+export interface Goals {
+  formality: 'any' | 'informal' | 'neutral' | 'formal';
+  audience: 'any' | 'general' | 'expert';
+}
+
+export const DEFAULT_GOALS: Goals = { formality: 'any', audience: 'any' };
+
 export interface CheckSettings {
   dialect: Dialect;
   categories: Category[];
   /** Ask the model for one-sentence explanations. Off for slow local models. */
   explanations: boolean;
+  /** Absent means DEFAULT_GOALS. */
+  goals?: Goals;
 }
 
 export const DEFAULT_CHECK_SETTINGS: CheckSettings = {

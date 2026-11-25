@@ -8,7 +8,7 @@ All runs: 2026-11-24, explanations off, every category enabled, `en-US` unless t
 otherwise. The corpus has 205 samples: 101 labeled correctness mistakes, 20 clarity, 16 style,
 10 tone, and 64 clean samples (851 words), including 5 prompt-injection samples.
 
-## Current prompt (v3)
+## Current prompt (v5; exactly v3 when no writing goals are set)
 
 | Model (provider)               | Samples | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | Clarity | Style | Tone | p50 / p95   |
 | ------------------------------ | ------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------- | ----- | ---- | ----------- |
@@ -23,16 +23,19 @@ Latency was measured with 4 requests at a time; a single check is likely a littl
 
 | Model (server)                      | Prompt | Samples                | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | p50 / p95    |
 | ----------------------------------- | ------ | ---------------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------------ |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v3 ²   | 71 (every third)       | 91%                   | 76%               | 10.2 (6 in 293 words)             | 97% / 86%                 | 13 / 26 s    |
 | `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
 | `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
 
 ¹ 4 requests at a time on one CPU; the server's throughput was ~17–30 s per sample.
+² Run with prompt v4 and no goals set, which is the v3 text exactly; one request at a time.
 
 phi4 is accurate on mistakes but noisier on clean text: it reworded a correct "principle",
 rewrote parts of a prompt-injection sample (without following the injected instruction), and
 added synonyms next to real fixes ("came to" → "attended"). It's usable in slow model mode
-for occasional checks, not for live underlines. It hasn't been run on prompt v3 yet (a full
-run takes hours on this machine).
+for occasional checks, not for live underlines. On v3 it found more clarity, style and tone
+issues than on v2 and, with that, flagged more clean text (10.2 vs 5.1 per 500 words, on the
+same samples).
 
 ## Recommended models
 
@@ -54,6 +57,36 @@ To add one: `CADENZA_EVAL_API_KEY=… npm run eval -- --preset <preset> --model 
 | v3     | The leave-alone rule scoped to correctness; clarity, style and tone told what to look for                                | 100%                  | 0                    | 85%     | 88%   | 80%  |
 
 v1 was also hurt by an engine bug (below), so some of the v1 → v2 precision gain is the fix.
+
+## Writing goals (prompts v4 and v5)
+
+Goals (tone and readers, set in settings) add lines to the prompt only when set; with no goals
+the text is exactly v3 (`prompt.test.ts` checks this against hashes of the v3 prompts), so the
+results above hold for everyone who leaves goals alone. Measured with the strictest
+combination: formal tone, general readers.
+
+| Model              | Samples          | Prompt  | Goals           | Correctness precision | Overall precision | Clean false positives / 500 words |
+| ------------------ | ---------------- | ------- | --------------- | --------------------- | ----------------- | --------------------------------- |
+| `claude-haiku-5-5` | 205              | v3 text | none            | 100%                  | 100%              | 0                                 |
+| `claude-haiku-5-5` | 205              | v5      | formal, general | 99%                   | 87%               | 7.6 (13 in 851 words)             |
+| `phi4-14b`         | 71 (every third) | v3 text | none            | 91%                   | 76%               | 10.2                              |
+| `phi4-14b`         | 71 (every third) | v4      | formal, general | 94%                   | 62%               | 34.1                              |
+| `phi4-14b`         | 71 (every third) | v5      | formal, general | 100%                  | 72%               | 18.8                              |
+
+The corpus labels assume no goals, so with a formal goal some "false positives" are the goal
+doing its job. v4's lines invited rewording: plain words swapped for fancier ones ("Fewer
+people" → "Fewer individuals", "amount of money" → "total funds") and shell commands flagged as
+jargon. v5 says to flag only slang, contractions and chatty phrases, to leave code, commands,
+names and quotes alone, and never to reword text that already fits the goals. Of v5's 11 clean
+flags, 7 are what a formal goal asks for ("I'm" → "I am", "Thanks for joining" → "Thank you
+for attending"); the rest are noise ("principal" → "headmaster").
+
+On `claude-haiku-5-5` every one of the 13 clean flags is what the goals ask for: 11 contractions
+or chatty phrases ("We're" → "We are", "lol that's" → "That is"), one acronym spelled out for
+general readers ("OKRs"), and "To be honest," → "Honestly,". No rewording noise; recall stayed
+high (correctness 97%, tone 100%) at 1.1 s p50. **v5 ships.**
+
+Not measured yet: the other goal values (casual, neutral, experts).
 
 ## Engine fixes found by the evals
 

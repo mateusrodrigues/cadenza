@@ -3,15 +3,23 @@ import type { Category, Paragraph, Suggestion } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
 import { applyToEditable, applyToTextControl, type Edit } from './apply';
 import { FieldBadge } from './badge';
+import { dictionaryWord, withoutDictionary } from './dictionary';
 import { mapThroughEdit } from './edit-map';
 import { type FieldElement, isTextControl } from './fields';
 import { hits } from './geometry';
 import { ruleKey } from './ignored';
-import type { CheckMessage, CheckResponse, ForgetMessage, IgnoreMessage } from './messages';
+import type {
+  AddWordMessage,
+  CheckMessage,
+  CheckResponse,
+  ForgetMessage,
+  IgnoreMessage,
+} from './messages';
 import { closePopover, openKind, openPopover, repositionPopover, updatePopover } from './popover';
 import { HighlightRenderer } from './render-highlights';
 import { OverlayRenderer } from './render-overlay';
 import type { Renderer } from './renderer';
+import { pageSite } from './sites';
 import { buildTextMap, offsetOf, type TextMap } from './text-map';
 import { buildCard, buildPanel } from './views';
 
@@ -45,6 +53,10 @@ export class FieldSession {
   private dismissed: Suggestion[] = [];
   /** "Don't suggest this again" rules added from this field; the worker filters the rest. */
   private readonly ignored = new Set<string>();
+  /** Words added to the dictionary from this field; the worker filters the rest. */
+  private readonly words: string[] = [];
+  /** Cadenza is off for this page (or not set up): no checks until settings change. */
+  private off = false;
   private observer: MutationObserver | null = null;
   private lastError: string | null = null;
   private panelError: string | null = null;
@@ -118,6 +130,7 @@ export class FieldSession {
 
   private schedule(delay = this.slow ? SLOW_DEBOUNCE_MS : DEBOUNCE_MS): void {
     clearTimeout(this.timer);
+    if (this.off) return;
     this.timer = setTimeout(() => void this.check(), delay);
   }
 
@@ -131,6 +144,7 @@ export class FieldSession {
       fieldId: this.fieldId,
       paragraphs,
       priority: caretParagraph(paragraphs, this.caretOffset()),
+      site: pageSite(),
     };
 
     this.badge.set({ kind: 'checking' });
@@ -153,6 +167,14 @@ export class FieldSession {
       return;
     }
     this.lastError = null;
+    if (response.off) {
+      this.off = true;
+      this.settledText = null;
+      closePopover(this);
+      this.draw([], this.readText().text);
+      this.badge.set({ kind: 'idle' });
+      return;
+    }
     this.slow = response.slow;
     // The user may have kept typing while the model worked (a minute on a local model): move
     // the results onto the current text rather than throwing them away. The edit already
@@ -178,7 +200,10 @@ export class FieldSession {
       this.dismissed.some(
         (d) => d.start === s.start && d.end === s.end && d.original === s.original,
       );
-    this.drawn = suggestions.filter((s) => !dismissed(s) && !this.ignored.has(ruleKey(s)));
+    this.drawn = withoutDictionary(
+      suggestions.filter((s) => !dismissed(s) && !this.ignored.has(ruleKey(s))),
+      this.words,
+    );
     this.drawnText = text;
     this.renderer.render(this.drawn, map);
     if (this.badge.kind === 'done') this.badge.set({ kind: 'done', suggestions: this.drawn });
@@ -217,6 +242,14 @@ export class FieldSession {
           closePopover(this);
           this.ignore(s);
         },
+        ...(dictionaryWord(s)
+          ? {
+              addWord: () => {
+                closePopover(this);
+                this.addWord(dictionaryWord(s) ?? '');
+              },
+            }
+          : {}),
       }),
       anchor: () => {
         const rects = this.renderer.rectsOf(s.id);
@@ -309,6 +342,24 @@ export class FieldSession {
     this.draw(this.drawn, this.drawnText);
     const message: IgnoreMessage = { type: 'cadenza/ignore', rule };
     browser.runtime.sendMessage(message).catch(() => {});
+  }
+
+  private addWord(word: string): void {
+    if (!word) return;
+    this.words.push(word);
+    this.draw(this.drawn, this.drawnText);
+    const message: AddWordMessage = { type: 'cadenza/add-word', word };
+    browser.runtime.sendMessage(message).catch(() => {});
+  }
+
+  /** Settings changed: check again, even text that was already checked. */
+  refresh(): void {
+    // The worker's lists are the truth now (a rule may have been removed in settings).
+    this.ignored.clear();
+    this.words.length = 0;
+    this.off = false;
+    this.settledText = null;
+    this.schedule(0);
   }
 
   destroy(): void {

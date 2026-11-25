@@ -11,6 +11,8 @@ export interface CardActions {
   accept(): Promise<boolean>;
   dismiss(): void;
   ignore(): void;
+  /** Present for single-word spelling suggestions. */
+  addWord?: () => void;
 }
 
 export function buildCard(s: Suggestion, actions: CardActions): HTMLElement {
@@ -28,8 +30,10 @@ export function buildCard(s: Suggestion, actions: CardActions): HTMLElement {
       }
     }),
     button('Dismiss', '', 'dismiss', () => actions.dismiss()),
-    button("Don't suggest this again", 'link', 'ignore', () => actions.ignore()),
   );
+  const { addWord } = actions;
+  if (addWord) row.append(button('Add to dictionary', 'link', 'add-word', () => addWord()));
+  row.append(button("Don't suggest this again", 'link', 'ignore', () => actions.ignore()));
   card.append(row, error);
   return card;
 }

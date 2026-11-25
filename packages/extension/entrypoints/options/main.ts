@@ -6,11 +6,10 @@ import {
   type ProviderConfig,
   type ProviderPreset,
 } from '@cadenza/providers';
-import { CATEGORIES, CATEGORY_IDS, type Dialect } from '@cadenza/shared';
+import { CATEGORIES, CATEGORY_IDS, type Dialect, type Goals } from '@cadenza/shared';
 import { browser } from 'wxt/browser';
-import { type IgnoreRule, loadIgnored, ruleKey, saveIgnored } from '../../lib/ignored';
+import { explainError } from '../../lib/connect';
 import type {
-  AllowOriginResponse,
   ListModelsResponse,
   PageMessage,
   TestResponse,
@@ -23,8 +22,11 @@ import {
   type Settings,
   saveSettings,
 } from '../../lib/settings';
+import { $, button } from './dom';
+import { renderDictionary, renderIgnored, renderSites, wireDictionary, wireSites } from './lists';
+import { renderSecurity, wireSecurity } from './security';
+import { renderUsage, wireLimit } from './usage';
 
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const el = {
   list: $<HTMLUListElement>('provider-list'),
   add: $<HTMLButtonElement>('add-provider'),
@@ -46,8 +48,8 @@ const el = {
   fix: $<HTMLButtonElement>('fix'),
   dialect: $<HTMLSelectElement>('dialect'),
   categories: $<HTMLFieldSetElement>('categories'),
-  ignoredList: $<HTMLUListElement>('ignored-list'),
-  ignoredEmpty: $<HTMLParagraphElement>('ignored-empty'),
+  formality: $<HTMLSelectElement>('formality'),
+  audience: $<HTMLSelectElement>('audience'),
 };
 
 const DIALECTS: [Dialect, string][] = [
@@ -57,10 +59,35 @@ const DIALECTS: [Dialect, string][] = [
   ['en-AU', 'Australian English'],
 ];
 
+const FORMALITY: [Goals['formality'], string][] = [
+  ['any', 'Fit the text (no preference)'],
+  ['informal', 'Casual and friendly'],
+  ['neutral', 'Plain and neutral'],
+  ['formal', 'Formal and professional'],
+];
+
+const AUDIENCE: [Goals['audience'], string][] = [
+  ['any', 'Anyone (no preference)'],
+  ['general', 'General readers: flag jargon'],
+  ['expert', 'Experts in the subject: allow jargon'],
+];
+
+/** Last loaded settings, for rendering. Changes always load fresh settings (see `update`). */
 let settings: Settings;
 /** The provider being edited (a copy), or null when the editor is closed. */
 let editing: SavedProvider | null = null;
 let fixAction: (() => Promise<void>) | null = null;
+
+/**
+ * Change settings starting from what is stored now, so a change made elsewhere (the popup, a
+ * card, another section) isn't overwritten by this page's older copy.
+ */
+async function update(change: (s: Settings) => void): Promise<void> {
+  const fresh = await loadSettings();
+  change(fresh);
+  await saveSettings(fresh);
+  settings = fresh;
+}
 
 function send<T>(message: PageMessage): Promise<T> {
   return browser.runtime.sendMessage(message) as Promise<T>;
@@ -80,8 +107,9 @@ function renderList() {
       });
       radio.setAttribute('aria-label', `Use ${p.name}`);
       radio.addEventListener('change', async () => {
-        settings.activeProviderId = p.id;
-        await saveSettings(settings);
+        await update((s) => {
+          s.activeProviderId = p.id;
+        });
       });
       const text = document.createElement('div');
       text.className = 'provider-text';
@@ -100,11 +128,10 @@ function renderList() {
       text.append(name, meta);
       const edit = button('Edit', () => openEditor(p, false));
       const remove = button('Remove', async () => {
-        settings.providers = settings.providers.filter((x) => x.id !== p.id);
-        if (settings.activeProviderId === p.id) {
-          settings.activeProviderId = settings.providers[0]?.id ?? null;
-        }
-        await saveSettings(settings);
+        await update((s) => {
+          s.providers = s.providers.filter((x) => x.id !== p.id);
+          if (s.activeProviderId === p.id) s.activeProviderId = s.providers[0]?.id ?? null;
+        });
         if (editing?.id === p.id) closeEditor();
         renderList();
       });
@@ -112,15 +139,6 @@ function renderList() {
       return li;
     }),
   );
-}
-
-function button(label: string, onClick: () => void) {
-  const b = Object.assign(document.createElement('button'), {
-    type: 'button',
-    textContent: label,
-  });
-  b.addEventListener('click', onClick);
-  return b;
 }
 
 // ---- Editor ------------------------------------------------------------------------------
@@ -270,13 +288,13 @@ async function save(event: SubmitEvent) {
     if (getPreset(p.presetId)?.needsKey && !p.apiKey) return say('Enter an API key.', 'error');
     if (!p.model) return say('Choose a model (use “Load models”).', 'error');
   }
-  const i = settings.providers.findIndex((x) => x.id === p.id);
-  if (i === -1) settings.providers.push(p);
-  else settings.providers[i] = p;
-  if (!settings.activeProviderId || el.editor.dataset.new === 'true') {
-    settings.activeProviderId = p.id;
-  }
-  await saveSettings(settings);
+  const isNew = el.editor.dataset.new === 'true';
+  await update((s) => {
+    const i = s.providers.findIndex((x) => x.id === p.id);
+    if (i === -1) s.providers.push(p);
+    else s.providers[i] = p;
+    if (!s.activeProviderId || isNew) s.activeProviderId = p.id;
+  });
   closeEditor();
   renderList();
 }
@@ -296,57 +314,17 @@ function offerFix(label: string, action: () => Promise<void>) {
   fixAction = action;
 }
 
-/**
- * Explain an error and, where Cadenza can fix it, offer a button. Permission requests must run
- * directly from a click, so they happen in the fix button's handler.
- */
+/** Explain an error and, where Cadenza can fix it, offer a button that fixes it and retries. */
 function showError(error: WorkerError, p: SavedProvider, retry: () => Promise<void>) {
-  const local = isLocalURL(p.baseURL);
-  let origin: string | null = null;
-  try {
-    origin = new URL(p.baseURL).origin;
-  } catch {}
-
-  const refusedOrigin = local && error.status === 403;
-  const unreachable = error.kind === 'network';
-  if (origin && (refusedOrigin || unreachable)) {
-    say(
-      refusedOrigin
-        ? 'The server refused the connection because it doesn’t accept requests from browser extensions.'
-        : `Could not reach ${origin}. If the server is running, it may be blocking browser requests.`,
-      'error',
-    );
-    const o = origin;
-    offerFix('Allow connection', async () => {
-      const granted = await browser.permissions.request({ origins: [`${o}/*`] });
-      if (!granted) return say('Cadenza was not allowed to connect.', 'error');
-      if (local) {
-        const res = await send<AllowOriginResponse>({ type: 'cadenza/allow-origin', origin: o });
-        if (!res.ok) return say(res.error.message, 'error');
-      }
+  const problem = explainError(error, p.baseURL);
+  say(problem.message, 'error');
+  const fix = problem.fix;
+  if (fix) {
+    offerFix(fix.label, async () => {
+      const failed = await fix.run();
+      if (failed) return say(failed, 'error');
       await retry();
     });
-    return;
-  }
-  say(describe(error), 'error');
-}
-
-function describe(error: WorkerError): string {
-  switch (error.kind) {
-    case 'auth':
-      return 'The API key was rejected.';
-    case 'not_found':
-      return 'The endpoint or model was not found. Check the URL and model.';
-    case 'rate_limited':
-      return 'The provider is limiting requests. Try again in a moment.';
-    case 'refused':
-      return 'The model declined the request.';
-    case 'bad_output':
-      return `The model’s reply couldn’t be used: ${error.message}`;
-    case 'unavailable':
-      return 'The provider is having problems. Try again later.';
-    default:
-      return error.message;
   }
 }
 
@@ -356,10 +334,23 @@ function renderWriting() {
   el.dialect.replaceChildren(
     ...DIALECTS.map(([id, label]) => new Option(label, id, false, id === settings.dialect)),
   );
-  el.dialect.onchange = async () => {
-    settings.dialect = el.dialect.value as Dialect;
-    await saveSettings(settings);
-  };
+  el.dialect.onchange = () =>
+    void update((s) => {
+      s.dialect = el.dialect.value as Dialect;
+    });
+  el.formality.replaceChildren(
+    ...FORMALITY.map(([id, l]) => new Option(l, id, false, id === settings.goals.formality)),
+  );
+  el.audience.replaceChildren(
+    ...AUDIENCE.map(([id, l]) => new Option(l, id, false, id === settings.goals.audience)),
+  );
+  el.formality.onchange = el.audience.onchange = () =>
+    void update((s) => {
+      s.goals = {
+        formality: el.formality.value as Goals['formality'],
+        audience: el.audience.value as Goals['audience'],
+      };
+    });
   const boxes = CATEGORY_IDS.map((id) => {
     const label = document.createElement('label');
     label.className = 'check';
@@ -380,8 +371,9 @@ function renderWriting() {
         box.checked = true;
         return;
       }
-      settings.categories = chosen;
-      await saveSettings(settings);
+      await update((s) => {
+        s.categories = chosen;
+      });
     });
     return label;
   });
@@ -389,45 +381,41 @@ function renderWriting() {
   el.categories.append(...boxes);
 }
 
-async function renderIgnored() {
-  const rules = (await loadIgnored()).reverse();
-  el.ignoredEmpty.hidden = rules.length > 0;
-  el.ignoredList.replaceChildren(
-    ...rules.map((rule) => {
-      const li = document.createElement('li');
-      const text = document.createElement('div');
-      text.className = 'provider-text';
-      text.append(
-        Object.assign(document.createElement('span'), { textContent: rule.original }),
-        Object.assign(document.createElement('span'), {
-          className: 'muted',
-          textContent: CATEGORIES[rule.category].label,
-        }),
-      );
-      const remove = button('Remove', () => void unignore(rule));
-      remove.setAttribute('aria-label', `Stop ignoring ${rule.original}`);
-      li.append(text, remove);
-      return li;
-    }),
-  );
-}
-
-async function unignore(rule: IgnoreRule) {
-  const key = ruleKey(rule);
-  await saveIgnored((await loadIgnored()).filter((r) => ruleKey(r) !== key));
-  await renderIgnored();
-}
-
 // ---- Wiring ------------------------------------------------------------------------------
+
+/** While the keys are locked, providers can't be edited (saving would need the keys). */
+async function applyLockState() {
+  const state = await renderSecurity();
+  settings = await loadSettings();
+  const locked = state === 'locked';
+  el.list.hidden = locked;
+  if (locked) closeEditor();
+  el.add.hidden = locked || editing !== null;
+  renderList();
+}
 
 async function init() {
   settings = await loadSettings();
   presetOptions();
-  renderList();
   renderWriting();
-  await renderIgnored();
-  browser.storage.local.onChanged.addListener((changes) => {
+  await applyLockState();
+  wireSecurity(applyLockState);
+  wireDictionary();
+  wireSites();
+  await wireLimit();
+  await Promise.all([renderIgnored(), renderDictionary(), renderSites(), renderUsage()]);
+  browser.storage.local.onChanged.addListener(async (changes) => {
     if (changes.ignored) void renderIgnored();
+    if (changes.dictionary) void renderDictionary();
+    if (changes.usage) void renderUsage();
+    if (changes.settings) {
+      settings = await loadSettings();
+      void renderSites();
+      if (!editing) renderList();
+    }
+  });
+  browser.storage.session.onChanged.addListener((changes) => {
+    if (changes.unlockKey) void applyLockState();
   });
 
   el.add.addEventListener('click', () => {

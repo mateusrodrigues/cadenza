@@ -1,59 +1,8 @@
-import type { Page } from '@playwright/test';
-import { expect, PAGE_URL, test } from './fixtures';
+import { expect, test } from './fixtures';
+import { card, cardButton, clickUnderline, open, overlayCount } from './helpers';
 
 // Phase 5: cards, accepting and dismissing, undo, the panel, and editors' own state staying
 // in sync. Runs on the built-in test rules (mock provider).
-
-const APPLY_URL = `${PAGE_URL}apply.html`;
-
-async function open(page: Page) {
-  await page.setViewportSize({ width: 900, height: 900 });
-  await page.goto(APPLY_URL);
-}
-
-/** Center of the underlined `word` in the field, from the drawn underline itself. */
-async function underline(page: Page, field: string, word: string) {
-  const handle = await page.waitForFunction(
-    ([selector, w]) => {
-      const el = document.querySelector(selector as string) as HTMLElement;
-      const box = el.getBoundingClientRect();
-      const inField = (r: DOMRect) =>
-        r.width > 0 && r.left >= box.left && r.right <= box.right && r.top >= box.top;
-      const rects: DOMRect[] = [];
-      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-        for (const o of document.querySelectorAll('cadenza-overlay')) {
-          for (const s of o.shadowRoot?.querySelectorAll('span') ?? []) {
-            if (s.textContent === w) rects.push(...s.getClientRects());
-          }
-        }
-      } else {
-        for (const [, h] of CSS.highlights) {
-          for (const r of h as Highlight) {
-            if (r.toString() === w && el.contains((r as Range).startContainer)) {
-              rects.push(...(r as Range).getClientRects());
-            }
-          }
-        }
-      }
-      const r = rects.find(inField);
-      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-    },
-    [field, word],
-  );
-  return (await handle.jsonValue()) as { x: number; y: number };
-}
-
-async function clickUnderline(page: Page, field: string, word: string) {
-  const { x, y } = await underline(page, field, word);
-  await page.mouse.click(x, y);
-  await expect(page.locator('cadenza-ui .card')).toBeVisible();
-}
-
-const card = (page: Page) => page.locator('cadenza-ui .card');
-const cardButton = (page: Page, action: string) =>
-  page.locator(`cadenza-ui .card button[data-action="${action}"]`);
-const overlayCount = (page: Page, n: number) =>
-  expect(page.locator(`cadenza-overlay[data-count="${n}"]`)).toHaveCount(1);
 
 test('a click on an underline opens its card; Accept applies it and Ctrl+Z undoes it', async ({
   context,
@@ -168,9 +117,11 @@ test("Don't suggest this again applies everywhere until removed in settings", as
   await expect(item).toHaveCount(0);
   await options.close();
 
+  // Open fields check again and show it; new ones flag it too.
+  await expect(page.locator('cadenza-overlay[data-count="2"]')).toHaveCount(2);
   await page.locator('#input').click();
   await page.keyboard.type('Until tomorow.');
-  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(3);
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
 });
 
 test('a page script cannot accept a suggestion with a synthetic click', async ({ context }) => {

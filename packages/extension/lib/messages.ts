@@ -17,6 +17,8 @@ export interface CheckMessage {
   paragraphs: Paragraph[];
   /** Paragraph ids to check first (the one with the caret). */
   priority?: string[];
+  /** Hostname of the top-level page (the tab's site, also for fields in frames). */
+  site?: string;
 }
 
 export type CheckResponse =
@@ -27,6 +29,8 @@ export type CheckResponse =
       pending: number;
       /** The active provider is in slow mode: debounce longer. */
       slow: boolean;
+      /** Cadenza is off here (globally, for this site, or not set up): show nothing. */
+      off?: boolean;
     }
   | { ok: false; error: WorkerError; cancelled: boolean };
 
@@ -41,6 +45,19 @@ export interface IgnoreMessage {
   rule: IgnoreRule;
 }
 
+/** "Add to dictionary", sent after the user clicks it on a card. */
+export interface AddWordMessage {
+  type: 'cadenza/add-word';
+  word: string;
+}
+
+// ---- From the worker to content scripts ---------------------------------------------------
+
+/** Settings changed (site toggle, dictionary, unlock…): check open fields again. */
+export interface RefreshMessage {
+  type: 'cadenza/refresh';
+}
+
 // ---- From extension pages only (popup, options) -------------------------------------------
 
 export interface StatusMessage {
@@ -50,6 +67,8 @@ export interface StatusMessage {
 export interface StatusResponse {
   enabled: boolean;
   provider: { name: string; model: string | null; slowMode: boolean } | null;
+  /** API keys are locked with a passphrase that hasn't been entered this session. */
+  locked: boolean;
 }
 
 export interface ListModelsMessage {
@@ -87,5 +106,5 @@ export interface AllowOriginMessage {
 
 export type AllowOriginResponse = { ok: true } | { ok: false; error: WorkerError };
 
-export type ContentMessage = CheckMessage | ForgetMessage | IgnoreMessage;
+export type ContentMessage = CheckMessage | ForgetMessage | IgnoreMessage | AddWordMessage;
 export type PageMessage = StatusMessage | ListModelsMessage | TestMessage | AllowOriginMessage;

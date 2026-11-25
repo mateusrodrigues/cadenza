@@ -11,6 +11,17 @@
     <main>
       <h1>Cadenza settings</h1>
 
+      <form id="locked" class="unlock" hidden>
+        <p>Your API keys are locked. Enter your passphrase to change providers.</p>
+        <input id="locked-passphrase" type="password" aria-label="Passphrase"
+          autocomplete="current-password" />
+        <div class="actions">
+          <button type="submit" class="primary">Unlock</button>
+          <button id="forget-keys" type="button">Forgot passphrase</button>
+        </div>
+        <p id="locked-message" class="error-text" role="status"></p>
+      </form>
+
       <section aria-labelledby="providers-heading">
         <h2 id="providers-heading">Provider</h2>
         <p class="muted">
@@ -65,6 +76,32 @@
         <fieldset id="categories">
           <legend>Suggest changes for</legend>
         </fieldset>
+        <label>Tone you're aiming for <select id="formality"></select></label>
+        <label>Readers <select id="audience"></select></label>
+      </section>
+
+      <section aria-labelledby="dictionary-heading">
+        <h2 id="dictionary-heading">Dictionary</h2>
+        <p class="muted">Words here are never marked as misspelled.</p>
+        <form id="dictionary-form" class="inline">
+          <input id="dictionary-word" type="text" aria-label="Word to add" spellcheck="false"
+            data-cadenza="off" />
+          <button type="submit">Add word</button>
+        </form>
+        <p id="dictionary-message" class="error-text" role="status"></p>
+        <ul id="dictionary-list" class="provider-list"></ul>
+      </section>
+
+      <section aria-labelledby="sites-heading">
+        <h2 id="sites-heading">Sites</h2>
+        <p class="muted">Cadenza stays off on these sites and their subdomains.</p>
+        <form id="sites-form" class="inline">
+          <input id="site-input" type="text" aria-label="Site to turn off"
+            placeholder="example.com" spellcheck="false" data-cadenza="off" />
+          <button type="submit">Turn off</button>
+        </form>
+        <p id="sites-message" class="error-text" role="status"></p>
+        <ul id="sites-list" class="provider-list"></ul>
       </section>
 
       <section aria-labelledby="ignored-heading">
@@ -73,6 +110,41 @@
           Text you chose "Don't suggest this again" for appears here.
         </p>
         <ul id="ignored-list" class="provider-list"></ul>
+      </section>
+
+      <section aria-labelledby="usage-heading">
+        <h2 id="usage-heading">Usage</h2>
+        <p class="muted">
+          Checks sent in the last 7 days. Cadenza only sends paragraphs that changed; your
+          provider's own dashboard has the exact bill.
+        </p>
+        <table id="usage-table" class="usage" hidden>
+          <thead>
+            <tr><th>Day</th><th>Provider</th><th>Checks</th><th>Tokens in</th><th>Tokens out</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p id="usage-empty" class="muted">Nothing sent yet.</p>
+        <label class="check">
+          <input id="limit-on" type="checkbox" /> Limit checks to hosted providers to
+          <input id="limit" type="number" min="1" step="1" value="500" aria-label="Checks per day" />
+          a day
+        </label>
+      </section>
+
+      <section aria-labelledby="security-heading">
+        <h2 id="security-heading">Passphrase</h2>
+        <p class="muted" id="security-text"></p>
+        <form id="set-passphrase" hidden>
+          <label>New passphrase <input id="new-passphrase" type="password" autocomplete="new-password" minlength="8" /></label>
+          <label>Repeat it <input id="repeat-passphrase" type="password" autocomplete="new-password" /></label>
+          <div class="actions"><button type="submit" class="primary">Lock keys with passphrase</button></div>
+        </form>
+        <div id="passphrase-actions" class="actions" hidden>
+          <button id="lock-now" type="button">Lock now</button>
+          <button id="remove-passphrase" type="button">Remove passphrase</button>
+        </div>
+        <p id="security-message" role="status"></p>
       </section>
     </main>
     <script type="module" src="./main.ts"></script>

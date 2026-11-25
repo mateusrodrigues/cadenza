@@ -17,8 +17,9 @@ export default defineConfig({
     name: 'Cadenza',
     description: 'Writing suggestions in any text field, using the AI provider you choose.',
     // declarativeNetRequestWithHostAccess: only acts on hosts the user granted (see
-    // lib/origin-rules.ts); adds no install warning.
-    permissions: ['storage', 'declarativeNetRequestWithHostAccess'],
+    // lib/origin-rules.ts); activeTab: the popup reads the current tab's site for its
+    // on/off switch. Neither adds an install warning.
+    permissions: ['storage', 'declarativeNetRequestWithHostAccess', 'activeTab'],
     // Endpoints the user adds (local servers, custom URLs) are requested at runtime.
     optional_host_permissions: ['http://localhost/*', 'http://127.0.0.1/*', 'https://*/*'],
     ...(E2E ? { host_permissions: [`${E2E_STUB_ORIGIN}/*`] } : {}),

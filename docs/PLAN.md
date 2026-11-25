@@ -91,7 +91,9 @@ interface Provider {
   suggestions. The worker also calls `storage.local.setAccessLevel({ accessLevel:
   'TRUSTED_CONTEXTS' })` at startup, which only takes effect once the worker has run (Phase 2).
 - Optional passphrase lock: keys encrypted with WebCrypto (AES-GCM, PBKDF2-derived key),
-  unlocked once per browser session into `chrome.storage.session`.
+  unlocked once per browser session: the derived key goes into `chrome.storage.session`
+  (memory only, never readable by content scripts). While locked, providers that have a key
+  stop checking and the popup asks for the passphrase.
 - Never in `chrome.storage.sync` (it would copy keys to the user's Google account).
 - Several providers can be saved; one is active. Per-site provider override is a later feature.
 
@@ -152,7 +154,8 @@ items are dropped, never shown.
 ### Prompt
 
 - One system prompt in `packages/engine/src/prompt.ts`; a change bumps `PROMPT_VERSION` and
-  is measured with the evals first (`docs/evals.md`). Currently v3.
+  is measured with the evals first (`docs/evals.md`). Currently v5 (v3 plus optional
+  writing goals; with no goals set the text is exactly v3's).
 - Page text goes in the user message, wrapped and labeled as text to check. The prompt tells
   the model to treat it only as data. Because the model has no tools and suggestions never
   apply without a click, injected instructions can at worst produce bad suggestions.
@@ -179,9 +182,9 @@ items are dropped, never shown.
 
 ### Field adapters
 
-| Field type                                              | Text access                | Underlines                                                                                 | Apply a suggestion                                                                                 |
-| ------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `<textarea>`, `<input type=text                         | search                     | email…>`                                                                                   | `.value`                                                                                           | Mirror div (copied font/padding/scroll) in a shadow-DOM overlay; rects from mirror ranges | Select range, `execCommand('insertText')` (native undo, real `input` events); `setRangeText()` + `input` fallback |
+| Field type                                              | Text access                | Underlines                                                                                 | Apply a suggestion                                                                                                                |
+| ------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `<textarea>`, `<input type=text\|search\|email…>`       | `.value`                   | Mirror div (copied font/padding/scroll) in a shadow-DOM overlay; rects from mirror ranges  | Select range, `execCommand('insertText')` (native undo, real `input` events); `setRangeText()` + `input` fallback                 |
 | `contenteditable` (Gmail, GitHub, LinkedIn, Slack web…) | DOM walk → text + node map | **CSS Custom Highlight API** (`CSS.highlights`, `::highlight(cadenza-*)`), no DOM mutation | Select range, offer a `beforeinput` (editors that own their model take it), else `execCommand('insertText')`; text verified after |
 
 The editor's own DOM is never modified: React/ProseMirror/Lexical editors break if we inject
@@ -269,15 +272,16 @@ underlines via the Highlight API, and a basic settings page.
 - Extension loads, worker answers content-script messages with mock suggestions.
 - **Exit:** load unpacked; a textarea on a test page gets mock underlines.
 
-### Phase 2 — Providers (week 2) — ✅ done, except live-key checks
+### Phase 2 — Providers (week 2) — ✅ done
 
 Done: Anthropic and Gemini adapters (next to OpenAI-compatible), several saved providers with
 one active, settings screen with model loading, Test connection and the "Allow connection" fix,
 slow model mode with a checking/done badge, a per-paragraph cache and scheduler, API keys moved
 to extension-origin IndexedDB. Findings in `docs/spikes.md`.
 
-Not done here: the exit check needs real keys and Ollama/LM Studio installs. Hosted APIs were
-verified reachable with an invalid key; the stub server covers Ollama's origin check.
+Exit check: Test connection passed by hand with Anthropic and a local Llama model. OpenAI,
+Gemini, OpenRouter, Ollama and LM Studio weren't available to try; hosted APIs were verified
+reachable with an invalid key, and the stub server covers Ollama's origin check.
 
 - Three adapters, presets, model listing, error/usage normalization.
 - Options → Providers screen with key entry, model picker, Test connection.
@@ -333,17 +337,33 @@ before the content script loads are now picked up, and editors that re-render wi
 events are followed through a MutationObserver. Tests: `e2e/cards.spec.ts` (including a
 React-style controlled textarea and a model-owning editor with its own undo) and
 `e2e/sites.spec.ts` (ProseMirror, Lexical and Slate demo pages, `CADENZA_NET_TESTS=1`).
-Not covered: signed-in sites (Gmail, GitHub, LinkedIn, Slack) need a manual pass; editors in
+Manual pass: GitHub works. Gmail worked only in Subject: the message body sets
+`spellcheck="false"`, which Cadenza read as a code editor; now only code editors (known ones,
+or monospace) opt out that way, and Gmail needs a second look. Not covered: LinkedIn and Slack
+still need a manual pass; editors in
 `about:blank`/`srcdoc` iframes (TinyMCE, CKEditor 4) aren't reached yet; the card opens on
 click, not hover; keyboard access to cards is Phase 7.
-
 
 - Card, Accept/Dismiss, "don't suggest again", undo works via Ctrl+Z.
 - Field badge and panel.
 - **Exit:** accept/dismiss works on the site matrix; framework state stays in sync
   (e.g. GitHub's comment preview reflects accepted changes).
 
-### Phase 6 — Settings and onboarding (week 6)
+### Phase 6 — Settings and onboarding (week 6) — ✅ done, except manual exit timing
+
+Done: onboarding page that opens on install, with two paths: an API key (provider, key,
+model) or a model on this computer (finds servers on the default ports, setup steps for
+Ollama and LM Studio when none runs, any other address, and the "Allow connection" fix). It
+ends with a test check and a box to try Cadenza in. New installs start with no provider.
+Settings gained goals (tone and readers; prompt v5), a personal dictionary (also "Add to
+dictionary" on spelling cards), sites where Cadenza stays off (also a per-site switch in the
+popup), usage per provider per day with an optional daily limit for hosted providers, and an
+optional passphrase that encrypts API keys. Changing any of these rechecks open fields.
+Tests: `e2e/setup.spec.ts` and unit tests for sites, dictionary, usage, settings and prompt v4.
+Not covered: the exit timing needs a person and a fresh profile; the popup's site switch and
+the hosted onboarding path need the toolbar click and a real key, so they are manual checks;
+detecting servers on the default ports isn't in e2e (the other-address path is). Goals were
+measured on `claude-haiku-5-5` and phi4 (v4 was too loose, v5 kept; see `docs/evals.md`).
 
 - Remaining options, dictionary, goals, usage view, key passphrase.
 - Onboarding with local-server detection.

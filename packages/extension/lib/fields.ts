@@ -30,9 +30,23 @@ export function resolveField(target: EventTarget | null): FieldElement | null {
     if (field.disabled || field.readOnly) return null;
     if (BLOCKED_AUTOCOMPLETE.test(field.autocomplete ?? '')) return null;
   }
-  if (field.getAttribute('spellcheck') === 'false' && field.dataset.cadenza !== 'on') {
-    // Code editors and similar fields opt out of spellcheck; treat that as opting out of us.
+  if (field.dataset.cadenza === 'on') return field;
+  if (isTextControl(field)) {
+    // Inputs and textareas without spellcheck are usually codes, commands or usernames.
+    if (field.getAttribute('spellcheck') === 'false') return null;
+  } else if (field.getAttribute('spellcheck') === 'false' && looksLikeCode(field)) {
+    // Rich editors turn browser spellcheck off for their own reasons (Gmail's message body
+    // does, to use its own checker), so only code editors opt out.
     return null;
   }
   return field;
+}
+
+const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor, .ace_editor, [data-language]';
+const MONOSPACE = /^\s*["']?(monospace|ui-monospace|courier|consolas|menlo|monaco|[^,]*\bmono\b)/i;
+
+/** A code editor: a known one, or an editable region set in a monospace font. */
+export function looksLikeCode(el: HTMLElement): boolean {
+  if (el.closest(CODE_EDITORS)) return true;
+  return MONOSPACE.test(getComputedStyle(el).fontFamily);
 }

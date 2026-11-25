@@ -17,7 +17,8 @@ npm run test:e2e     # builds, then runs browser tests against the built extensi
 
 Load the extension: open `chrome://extensions`, turn on Developer mode, choose
 **Load unpacked**, and select `packages/extension/.output/chrome-mv3` (run `npm run build`
-first). New installs use built-in test rules; pick a provider in the extension's settings.
+first). A new install opens a setup page to connect a provider or a model on this computer;
+test builds (`CADENZA_E2E=1`) start on built-in test rules instead.
 
 To run the engine against a local OpenAI-compatible server:
 

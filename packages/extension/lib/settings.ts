@@ -4,9 +4,16 @@ import {
   type ProviderConfig,
   type ProviderPreset,
 } from '@cadenza/providers';
-import { CATEGORY_IDS, type Category, type CheckSettings, type Dialect } from '@cadenza/shared';
+import {
+  CATEGORY_IDS,
+  type Category,
+  type CheckSettings,
+  DEFAULT_GOALS,
+  type Dialect,
+  type Goals,
+} from '@cadenza/shared';
 import { browser } from 'wxt/browser';
-import { readApiKeys, writeApiKeys } from './secrets';
+import { LockedError, readApiKeys, writeApiKeys } from './secrets';
 
 export interface SavedProvider extends ProviderConfig {
   id: string;
@@ -19,6 +26,8 @@ export interface SavedProvider extends ProviderConfig {
    * after typing, and let a running check finish while the user edits other paragraphs.
    */
   slowMode: boolean;
+  /** Whether a key is saved for it, so a locked key store can be told apart from no key. */
+  hasKey?: boolean;
 }
 
 export interface Settings {
@@ -28,8 +37,11 @@ export interface Settings {
   activeProviderId: string | null;
   dialect: Dialect;
   categories: Category[];
-  /** Hostnames where Cadenza stays off. */
+  goals: Goals;
+  /** Hostnames where Cadenza stays off (subdomains included, see sites.ts). */
   disabledSites: string[];
+  /** Most checks a day sent to hosted providers; null for no limit. Local models are free. */
+  dailyLimit: number | null;
 }
 
 export const MOCK_PROVIDER: SavedProvider = {
@@ -47,13 +59,19 @@ export const MOCK_PROVIDER: SavedProvider = {
 export const DEFAULT_SETTINGS: Settings = {
   version: 2,
   enabled: true,
-  // Until onboarding exists (Phase 6), new installs start on the built-in test rules.
-  providers: [MOCK_PROVIDER],
-  activeProviderId: MOCK_PROVIDER.id,
+  // New installs set up a provider in onboarding; test builds start on the built-in rules.
+  providers: isTestBuild() ? [MOCK_PROVIDER] : [],
+  activeProviderId: isTestBuild() ? MOCK_PROVIDER.id : null,
   dialect: 'en-US',
   categories: [...CATEGORY_IDS],
+  goals: { ...DEFAULT_GOALS },
   disabledSites: [],
+  dailyLimit: null,
 };
+
+function isTestBuild(): boolean {
+  return typeof __CADENZA_E2E__ !== 'undefined' && __CADENZA_E2E__;
+}
 
 const KEY = 'settings';
 
@@ -83,7 +101,20 @@ export function checkSettingsFor(settings: Settings, provider: SavedProvider): C
     dialect: settings.dialect,
     categories: settings.categories,
     explanations: provider.explanations,
+    goals: settings.goals,
   };
+}
+
+/**
+ * Marks settings loaded while the key store was locked (see secrets.ts): their providers have
+ * no keys, so saving them must leave the stored keys alone. A symbol survives `{...settings}`.
+ */
+const KEYS_LOCKED = Symbol('keysLocked');
+type Loaded = Settings & { [KEYS_LOCKED]?: true };
+
+/** Settings were loaded while the API keys were locked with a passphrase. */
+export function keysLocked(settings: Settings): boolean {
+  return (settings as Loaded)[KEYS_LOCKED] === true;
 }
 
 /**
@@ -93,19 +124,38 @@ export function checkSettingsFor(settings: Settings, provider: SavedProvider): C
  */
 export async function loadSettings(): Promise<Settings> {
   const stored = (await browser.storage.local.get(KEY))[KEY] as Record<string, unknown> | undefined;
-  const settings = migrate(stored);
-  const keys = await readApiKeys();
+  const settings: Loaded = migrate(stored);
+  let keys: Record<string, string>;
+  try {
+    keys = await readApiKeys();
+  } catch (err) {
+    if (!(err instanceof LockedError)) throw err;
+    settings[KEYS_LOCKED] = true;
+    keys = {};
+  }
   for (const p of settings.providers) p.apiKey = keys[p.id] ?? p.apiKey ?? null;
   return settings;
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  const keys: Record<string, string> = {};
-  for (const p of settings.providers) if (p.apiKey) keys[p.id] = p.apiKey;
-  // Keys first, so a key is never only in the old copy of the settings.
-  await writeApiKeys(keys);
+  const locked = keysLocked(settings);
+  if (!locked) {
+    const keys: Record<string, string> = {};
+    for (const p of settings.providers) if (p.apiKey) keys[p.id] = p.apiKey;
+    // Keys first, so a key is never only in the old copy of the settings.
+    await writeApiKeys(keys);
+  } else if (settings.providers.some((p) => p.apiKey)) {
+    throw new LockedError();
+  }
   await browser.storage.local.set({
-    [KEY]: { ...settings, providers: settings.providers.map((p) => ({ ...p, apiKey: null })) },
+    [KEY]: {
+      ...settings,
+      providers: settings.providers.map((p) => ({
+        ...p,
+        apiKey: null,
+        hasKey: locked ? (p.hasKey ?? false) : !!p.apiKey,
+      })),
+    },
   });
 }
 

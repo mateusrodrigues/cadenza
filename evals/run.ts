@@ -4,6 +4,7 @@
  *   npm run eval -- --preset llamacpp --base-url http://127.0.0.1:8360/v1 --model phi4-14b
  *   CADENZA_EVAL_API_KEY=… npm run eval -- --preset openai --model <id from the provider>
  *   npm run eval -- --rescore evals/results/<file>.json     (after editing labels)
+ *   … --formality formal --audience general                 (writing goals, prompt v4+)
  *
  * The API key is read only from CADENZA_EVAL_API_KEY, never from the command line.
  * Results are saved after every sample; --resume <file> continues an interrupted run.
@@ -18,7 +19,7 @@ import {
   splitParagraphs,
 } from '@cadenza/engine';
 import { createProvider, getPreset, ProviderError } from '@cadenza/providers';
-import { CATEGORY_IDS, type CheckSettings } from '@cadenza/shared';
+import { CATEGORY_IDS, type CheckSettings, type Goals } from '@cadenza/shared';
 import { loadCorpus, type Sample } from './corpus.js';
 import { type SampleResult, type Summary, summarize } from './score.js';
 
@@ -32,6 +33,8 @@ interface RunFile {
     startedAt: string;
     filter: string | null;
     every: number | null;
+    /** Writing goals sent with every sample (prompt v4+); absent in older runs. */
+    goals?: Goals;
   };
   results: SampleResult[];
   summary?: Summary;
@@ -53,6 +56,9 @@ const { values: args } = parseArgs({
     rescore: { type: 'string' },
     /** With --rescore: re-anchor the saved raw model items with the current engine first. */
     reanchor: { type: 'boolean', default: false },
+    /** Writing goals (prompt v4+): any | informal | neutral | formal, any | general | expert. */
+    formality: { type: 'string', default: 'any' },
+    audience: { type: 'string', default: 'any' },
   },
 });
 
@@ -137,9 +143,22 @@ function newRun(): RunFile {
       startedAt: new Date().toISOString(),
       filter: args.filter ?? null,
       every: args.every ? Number(args.every) : null,
+      goals: parseGoals(),
     },
     results: [],
   };
+}
+
+function parseGoals(): Goals {
+  const formality = args.formality as Goals['formality'];
+  const audience = args.audience as Goals['audience'];
+  if (!['any', 'informal', 'neutral', 'formal'].includes(formality)) {
+    throw new Error('--formality must be any, informal, neutral or formal');
+  }
+  if (!['any', 'general', 'expert'].includes(audience)) {
+    throw new Error('--audience must be any, general or expert');
+  }
+  return { formality, audience };
 }
 
 /** Keeps every Nth sample within each id group, so each category stays represented. */
@@ -151,7 +170,13 @@ function inSlice(sample: Sample, every: number): boolean {
 function defaultOutPath(meta: RunFile['meta']): string {
   const dir = join(import.meta.dirname, 'results');
   mkdirSync(dir, { recursive: true });
-  const slug = `${meta.preset}-${meta.model}`.replace(/[^a-zA-Z0-9.-]+/g, '_');
+  const g = meta.goals;
+  const goals = g && (g.formality !== 'any' || g.audience !== 'any');
+  const slug =
+    `${meta.preset}-${meta.model}${goals ? `-${g.formality}-${g.audience}` : ''}`.replace(
+      /[^a-zA-Z0-9.-]+/g,
+      '_',
+    );
   const stamp = meta.startedAt.replace(/[:.]/g, '-').slice(0, 19);
   return join(dir, `${slug}-p${meta.promptVersion}-${stamp}.json`);
 }
@@ -161,6 +186,7 @@ async function runSample(sample: Sample): Promise<SampleResult> {
     dialect: sample.dialect ?? 'en-US',
     categories: [...CATEGORY_IDS],
     explanations: run.meta.explanations,
+    ...(run.meta.goals ? { goals: run.meta.goals } : {}),
   };
   const t0 = performance.now();
   try {
@@ -198,7 +224,8 @@ function printSummary({ meta, summary }: RunFile) {
   if (!summary) return;
   const pct = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(0)}%`);
   console.log(
-    `\n${meta.preset} / ${meta.model} — prompt v${meta.promptVersion}, explanations ${meta.explanations ? 'on' : 'off'}`,
+    `\n${meta.preset} / ${meta.model} — prompt v${meta.promptVersion}, explanations ${meta.explanations ? 'on' : 'off'}` +
+      (meta.goals ? `, goals ${meta.goals.formality}/${meta.goals.audience}` : ''),
   );
   console.log(
     `samples ${summary.samples}, errors ${summary.errors}, dropped items ${summary.dropped}`,

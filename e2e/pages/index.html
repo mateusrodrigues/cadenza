@@ -19,5 +19,13 @@
     <div id="editor" contenteditable="true"><p>First paragraph.</p></div>
     <label>Password <input id="password" type="password" /></label>
     <label>Opted out <textarea id="optout" data-cadenza="off"></textarea></label>
+    <!-- Like Gmail's message body: a rich editor with browser spellcheck turned off. -->
+    <div>Mail body</div>
+    <div id="mail-body" contenteditable="true" spellcheck="false"></div>
+    <!-- Code editors: a monospace editable region, and one inside a CodeMirror-style wrapper. -->
+    <div id="code-mono" contenteditable="true" spellcheck="false"
+      style="font-family: ui-monospace, Menlo, monospace"></div>
+    <div class="cm-editor"><div id="code-cm" class="cm-content" contenteditable="true"
+      spellcheck="false"></div></div>
   </body>
 </html>
