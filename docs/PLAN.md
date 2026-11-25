@@ -53,8 +53,8 @@ browser mode, so we don't hand-maintain request formats.
 Presets are just a base URL, auth header style, and any extra headers (e.g. OpenRouter's
 `HTTP-Referer` / `X-Title: Cadenza`). Adding a new OpenAI-compatible vendor is a one-entry change.
 
-**Stretch for v1:** Chrome's built-in on-device model (Prompt API), as a zero-setup local
-option when the browser supports it.
+**Later, not v1:** Chrome's built-in on-device model (Prompt API), as a zero-setup local
+option when the browser supports it. It was a v1 stretch goal and wasn't built (see §8).
 
 **Not in v1:** Amazon Bedrock and Google Vertex AI (they need cloud credentials and request
 signing rather than an API key). Users can reach most of the same models through OpenRouter.
@@ -540,7 +540,8 @@ keyboards. The checklist is `docs/testing.md`; results and bugs are recorded the
 ### Later (not v1)
 
 Google Docs (canvas-rendered, needs its own integration), Firefox/Safari, per-site provider
-choice, a second "deep review" model, full-document and tone rewrites, Bedrock/Vertex, desktop app.
+choice, a second "deep review" model, full-document and tone rewrites, Bedrock/Vertex, Chrome's
+built-in on-device model, desktop app.
 
 ---
 
@@ -577,9 +578,14 @@ are excluded from the check.
 | User cost on paid keys                          | Hash cache, only changed paragraphs, usage shown in Options, optional daily cap.                                                                           |
 | Store review of broad permissions               | Optional permissions for custom endpoints; clear justifications.                                                                                           |
 
-## 8. Open decisions
+## 8. Decisions
 
-1. Which providers get first-class presets at launch vs. "custom endpoint".
-2. Whether Chrome's built-in on-device model ships in v1.
-3. WXT vs. plain Vite for the extension build (WXT assumed).
-4. Final brand palette and icon.
+All settled before release.
+
+1. **Presets at launch:** the table under "Provider support" (§1); everything else uses "Custom OpenAI-compatible
+   endpoint". The list lives in `packages/providers/src/presets.ts`.
+2. **Chrome's built-in on-device model:** not in v1. Local models are covered by the
+   local-server presets; the built-in model moves to Later.
+3. **Build tool:** WXT.
+4. **Brand palette and icon:** the design kit's (Phase 8), including the fermata icon and the
+   store art in `store/`.

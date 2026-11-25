@@ -306,6 +306,10 @@ test('check results survive the service worker being stopped', async ({ context,
     });
   };
   await typeText();
+  // The underline can come from a check of the text typed so far, if typing paused; let any
+  // check still waiting on the 700 ms typing pause go out before counting.
+  await page.waitForTimeout(1000);
+  await expect(page.locator('cadenza-badge')).toHaveAttribute('data-state', 'done');
   const posts = () => stub.origins.filter((o) => o?.startsWith('POST')).length;
   const before = posts();
 

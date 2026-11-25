@@ -538,6 +538,8 @@ async function init() {
 
   settings = await loadSettings();
   presetOptions();
+  // Before anything else is awaited, so a choice made while the page loads isn't lost.
+  wireProviderForm();
   renderWriting();
   await applyLockState();
   wireSecurity(applyLockState);
@@ -565,7 +567,10 @@ async function init() {
   browser.storage.session.onChanged.addListener((changes) => {
     if (changes.unlockKey) void applyLockState();
   });
+}
 
+/** The provider form's controls. Each acts on `editing`, so they're safe before it is set. */
+function wireProviderForm() {
   el.add.addEventListener('click', () => addProvider());
   el.preset.addEventListener('change', () => {
     const preset = getPreset(el.preset.value);

@@ -81,8 +81,8 @@ Paste into the "Test instructions" field, so a reviewer can try Cadenza without 
 >
 > 1. Close the setup page that opens on install, then open Cadenza's settings (right-click
 >    the toolbar icon, then Options).
-> 2. On the Provider tab, choose Add provider. Set Preset to "Test rules (no AI)", then
->    choose Save provider.
+> 2. The Provider tab opens with a new provider's form. Set Preset to "Test rules (no AI)",
+>    then choose Save provider.
 > 3. On any page with a text box, type: Read teh book tomorow.
 >    Cadenza underlines "teh" and "tomorow". Click an underline to see the suggestion, then
 >    Accept to apply it.

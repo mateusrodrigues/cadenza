@@ -11,6 +11,8 @@ export const E2E_STUB_ORIGIN = 'http://127.0.0.1:4600';
 export default defineConfig({
   imports: false,
   outDir: E2E ? '.output-e2e' : '.output',
+  // The store upload: cadenza-<version>-chrome.zip.
+  zip: { artifactTemplate: 'cadenza-{{version}}-{{browser}}.zip' },
   // Test builds open the card and panel shadow roots so tests can click their buttons.
   vite: () => ({ define: { __CADENZA_E2E__: JSON.stringify(E2E) } }),
   manifest: {
