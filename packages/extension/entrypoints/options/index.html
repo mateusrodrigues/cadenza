@@ -157,6 +157,40 @@
             <legend>Categories</legend>
             <div id="category-rows" class="boxed"></div>
           </fieldset>
+          <fieldset id="field-kinds">
+            <legend>Where to check</legend>
+            <div class="boxed padded switches">
+              <div class="switch-row">
+                <div>
+                  <label for="kind-input">Text fields</label>
+                  <p id="kind-input-help">Single-line boxes, like a subject line or a search.</p>
+                </div>
+                <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                <input id="kind-input" type="checkbox" role="switch" data-kind="input"
+                  aria-describedby="kind-input-help" />
+              </div>
+              <div class="switch-row">
+                <div>
+                  <label for="kind-textarea">Text areas</label>
+                  <p id="kind-textarea-help">Multi-line plain boxes, like a comment or a form
+                    answer.</p>
+                </div>
+                <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                <input id="kind-textarea" type="checkbox" role="switch" data-kind="textarea"
+                  aria-describedby="kind-textarea-help" />
+              </div>
+              <div class="switch-row">
+                <div>
+                  <label for="kind-rich">Rich editors</label>
+                  <p id="kind-rich-help">Editors with formatting, like an email body or a chat
+                    message.</p>
+                </div>
+                <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                <input id="kind-rich" type="checkbox" role="switch" data-kind="rich"
+                  aria-describedby="kind-rich-help" />
+              </div>
+            </div>
+          </fieldset>
           <fieldset id="formality" class="pills">
             <legend>Formality</legend>
           </fieldset>

@@ -44,7 +44,16 @@ export interface Settings {
   siteOffSince: Record<string, string>;
   /** Most checks a day sent to hosted providers; null for no limit. Local models are free. */
   dailyLimit: number | null;
+  /** Which kinds of field Cadenza checks (see `fieldKind` in fields.ts). */
+  fieldKinds: Record<FieldKind, boolean>;
 }
+
+/**
+ * The kinds of field Cadenza checks, each of which can be turned off: single-line text fields
+ * (`<input>`), multi-line text areas (`<textarea>`), and rich editors (contenteditable).
+ */
+export type FieldKind = 'input' | 'textarea' | 'rich';
+export const FIELD_KINDS: readonly FieldKind[] = ['input', 'textarea', 'rich'];
 
 export const MOCK_PROVIDER: SavedProvider = {
   id: 'mock',
@@ -70,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   disabledSites: [],
   siteOffSince: {},
   dailyLimit: null,
+  fieldKinds: { input: true, textarea: true, rich: true },
 };
 
 function isTestBuild(): boolean {

@@ -5,7 +5,7 @@ import { applyToEditable, applyToTextControl, type Edit, invertEdits } from './a
 import { type BadgeState, FieldBadge } from './badge';
 import { dictionaryWord, withoutDictionary } from './dictionary';
 import { mapThroughEdit } from './edit-map';
-import { type FieldElement, isTextControl } from './fields';
+import { type FieldElement, fieldKind, isTextControl } from './fields';
 import { hits } from './geometry';
 import { ruleKey } from './ignored';
 import type {
@@ -113,7 +113,11 @@ export class FieldSession {
     if (hit) this.openCard(hit, e.clientX, e.clientY);
   };
 
+  /** Text field, text area or rich editor; each kind can be turned off in settings. */
+  private readonly kind;
+
   constructor(readonly field: FieldElement) {
+    this.kind = fieldKind(field);
     this.renderer = isTextControl(field)
       ? new OverlayRenderer(field)
       : new HighlightRenderer(field);
@@ -196,7 +200,7 @@ export class FieldSession {
   private async check(): Promise<void> {
     const seq = ++this.requestSeq;
     // Ask whether Cadenza is on here before reading anything; the question carries no text.
-    const gate: GateMessage = { type: 'cadenza/gate', site: pageSite() };
+    const gate: GateMessage = { type: 'cadenza/gate', site: pageSite(), kind: this.kind };
     let off: OffReason | null;
     try {
       off = ((await toWorker(gate)) as GateResponse).off;
@@ -225,6 +229,7 @@ export class FieldSession {
       paragraphs,
       priority: caretParagraph(paragraphs, this.caretOffset()),
       site: pageSite(),
+      kind: this.kind,
     };
 
     this.setBadge({ kind: 'checking' });
@@ -277,7 +282,11 @@ export class FieldSession {
     if (openKind(this) === 'card') closePopover(this);
     this.drawn = [];
     this.renderer.render([]);
-    this.setBadge({ kind: 'paused', message: offMessage(reason) });
+    // A kind of field the user turned off shows nothing at all, not a pause badge in every
+    // search box; the other reasons say why Cadenza is off and how to turn it back on.
+    this.setBadge(
+      reason === 'kind' ? { kind: 'idle' } : { kind: 'paused', message: offMessage(reason) },
+    );
     this.refreshPanel();
   }
 
@@ -735,6 +744,8 @@ function offMessage(reason: OffReason): string {
   if (reason === 'site')
     return 'Off on this site. Turn it back on from the Cadenza toolbar button.';
   if (reason === 'disabled') return 'Cadenza is switched off. Turn it on from the toolbar button.';
+  if (reason === 'kind')
+    return 'Cadenza is off for this kind of field. Turn it on in its settings.';
   return 'Cadenza isn’t set up yet. Choose a provider in its settings.';
 }
 

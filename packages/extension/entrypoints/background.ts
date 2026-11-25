@@ -41,6 +41,8 @@ import { sessionCacheStore } from '../lib/session-cache';
 import {
   activeProvider,
   checkSettingsFor,
+  FIELD_KINDS,
+  type FieldKind,
   isHosted,
   keysLocked,
   loadSettings,
@@ -115,7 +117,9 @@ export default defineBackground(() => {
     switch (msg?.type) {
       case 'cadenza/gate':
         return reply(
-          loadSettings().then((s): GateResponse => ({ off: offReason(s, msg.site, sender.url) })),
+          loadSettings().then(
+            (s): GateResponse => ({ off: offReason(s, msg.site, sender.url, msg.kind) }),
+          ),
         );
       case 'cadenza/check':
         return reply(
@@ -161,7 +165,7 @@ async function handleCheck(
   const settings = await loadSettings();
   const provider = activeProvider(settings);
   // Content scripts ask first (cadenza/gate) and send no text when off; this is the backstop.
-  const off = offReason(settings, msg.site, frameURL);
+  const off = offReason(settings, msg.site, frameURL, msg.kind);
   if (off || !provider) {
     return { ok: true, suggestions: [], pending: 0, slow: false, off: off ?? 'setup' };
   }
@@ -235,12 +239,16 @@ function offReason(
   settings: Settings,
   site: unknown,
   frameURL: string | undefined,
+  kind: unknown,
 ): OffReason | null {
   if (!settings.enabled) return 'disabled';
   // The content script stays out of these; this is the backstop.
   if (unsupportedEditor(frameURL)) return 'site';
   const sites = [typeof site === 'string' ? site : null, hostOf(frameURL)];
   if (sites.some((h) => h && siteIsOff(h, settings.disabledSites))) return 'site';
+  if (FIELD_KINDS.includes(kind as FieldKind) && !settings.fieldKinds[kind as FieldKind]) {
+    return 'kind';
+  }
   if (!activeProvider(settings)) return 'setup';
   return null;
 }

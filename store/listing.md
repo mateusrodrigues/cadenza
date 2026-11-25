@@ -61,6 +61,7 @@ English
 >
 > • American, British, Canadian or Australian English
 > • Choose which kinds of suggestions you see, and the formality and readers you're writing for
+> • Choose where Cadenza checks: single-line text fields, text areas, rich editors, or any mix
 > • A personal dictionary for names and terms
 > • "Don't suggest this again" for anything you want left alone, with Undo
 > • A daily limit on checks, and a record of how many you've made

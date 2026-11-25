@@ -43,6 +43,9 @@ Also check that a code block or code editor on any of these sites is never under
 - [ ] Onboarding, local path: the server is found on its default port, or the "any other
       address" path works.
 - [ ] The popup's per-site switch turns Cadenza off on that site, and back on.
+- [ ] Settings → Writing → Where to check: with Text fields off, a search box or subject line
+      shows nothing; with Rich editors off, the Gmail body shows nothing; turning each back on
+      checks what is already there.
 - [ ] In a Google Doc: no underlines or badge, and the popup says Google Docs support is
       coming soon in place of the site switch. Google Forms and Gmail still work.
 - [ ] Passphrase: set it, restart the browser, confirm checks stop until you unlock from the

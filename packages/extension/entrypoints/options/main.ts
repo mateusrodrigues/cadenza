@@ -17,6 +17,7 @@ import type {
   WorkerError,
 } from '../../lib/messages';
 import {
+  FIELD_KINDS,
   loadSettings,
   newProvider,
   type SavedProvider,
@@ -490,6 +491,18 @@ function renderWriting() {
   el.categories.replaceChildren(...rows);
 }
 
+/** Where to check: text fields, text areas, rich editors. Any of them may be off, even all. */
+function renderFieldKinds() {
+  for (const kind of FIELD_KINDS) {
+    const box = $<HTMLInputElement>(`kind-${kind}`);
+    box.checked = settings.fieldKinds[kind];
+    box.onchange = () =>
+      void update((s) => {
+        s.fieldKinds = { ...s.fieldKinds, [kind]: box.checked };
+      });
+  }
+}
+
 /** The keyboard shortcut for suggestions, as the user has it set in Chrome. */
 async function renderShortcut() {
   const keys = $('shortcut-keys');
@@ -538,6 +551,7 @@ async function init() {
   // Before anything else is awaited, so a choice made while the page loads isn't lost.
   wireProviderForm();
   renderWriting();
+  renderFieldKinds();
   await applyLockState();
   wireSecurity(applyLockState);
   wireDictionary();

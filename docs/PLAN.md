@@ -490,6 +490,9 @@ real UI.
     button, Use this provider, Delete with a confirmation).
   - Writing: English variant and formality as pills, category rows, audience, and the shortcut
     with a button to change it in Chrome.
+  - Writing also has "Where to check": switches for text fields, text areas and rich editors
+    (`fieldKinds`). A kind that's off is gated like a site that's off: its text isn't read, and
+    it shows no badge.
   - Sites lists when each site was turned off; Ignored shows each rule's change and its site,
     with Restore; Usage is a 7-day table with totals, beside the optional daily limit.
   - Deviations: Formality keeps "No preference", the audience options are Cadenza's own, and

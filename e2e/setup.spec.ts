@@ -408,3 +408,60 @@ test('Google Docs: Cadenza stays out (support is coming), other Google pages sti
   await form.keyboard.type('Read teh book.');
   await expect(form.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
 });
+
+test('Where to check: a kind of field turned off is not read, and comes back when turned on', async ({
+  context,
+  extensionId,
+  worker,
+}) => {
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${extensionId}/options.html#writing`);
+  const kindOn = async (kind: string) =>
+    worker.evaluate(
+      async (k) =>
+        (
+          (await chrome.storage.local.get('settings')).settings as {
+            fieldKinds: Record<string, boolean>;
+          }
+        ).fieldKinds[k],
+      kind,
+    );
+  await options.getByRole('switch', { name: 'Text fields' }).uncheck();
+  await options.getByRole('switch', { name: 'Rich editors' }).uncheck();
+  await expect.poll(() => kindOn('input')).toBe(false);
+  await expect.poll(() => kindOn('rich')).toBe(false);
+  await expect(options.getByRole('switch', { name: 'Text areas' })).toBeChecked();
+
+  const checks = () =>
+    worker.evaluate(
+      () => (globalThis as { cadenzaChecksReceived?: () => number }).cadenzaChecksReceived?.() ?? 0,
+    );
+  const correctness = () =>
+    page.evaluate(() => CSS.highlights.get('cadenza-correctness')?.size ?? 0);
+  const page = await context.newPage();
+  await open(page);
+  const before = await checks();
+
+  // Off: the text field and the rich editor send nothing and show no badge.
+  await page.locator('#input').click();
+  await page.keyboard.type('Read teh book.');
+  await page.locator('#editor p').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Read teh book.');
+  await page.waitForTimeout(1500);
+  expect(await checks()).toBe(before);
+  expect(await correctness()).toBe(0);
+  await expect(page.locator('cadenza-badge[data-state="paused"]')).toHaveCount(0);
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(0);
+
+  // On: the text area is checked as usual.
+  await page.locator('#plain').click();
+  await page.keyboard.type('Read teh book.');
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
+
+  // Turning the others back on checks what was typed there, without more typing.
+  await options.getByRole('switch', { name: 'Rich editors' }).check();
+  await options.getByRole('switch', { name: 'Text fields' }).check();
+  await expect.poll(correctness).toBe(1);
+  await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(2);
+});

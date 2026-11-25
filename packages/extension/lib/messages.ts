@@ -1,6 +1,7 @@
 import type { ModelInfo, ProviderConfig } from '@cadenza/providers';
 import type { Paragraph, Suggestion } from '@cadenza/shared';
 import type { IgnoreRule } from './ignored';
+import type { FieldKind } from './settings';
 
 export interface WorkerError {
   kind: string;
@@ -19,6 +20,8 @@ export interface CheckMessage {
   priority?: string[];
   /** Hostname of the top-level page (the tab's site, also for fields in frames). */
   site?: string;
+  /** The kind of field, which the user may have turned off. */
+  kind?: FieldKind;
 }
 
 export type CheckResponse =
@@ -34,7 +37,8 @@ export type CheckResponse =
     }
   | { ok: false; error: WorkerError; cancelled: boolean };
 
-export type OffReason = 'disabled' | 'site' | 'setup';
+/** Why Cadenza is off for a field: switched off, off on the site, this kind of field turned off, or not set up. */
+export type OffReason = 'disabled' | 'site' | 'kind' | 'setup';
 
 /** What the focused field shows, for the toolbar icon and its count. */
 export interface TabStateMessage {
@@ -56,6 +60,8 @@ export interface GateMessage {
   type: 'cadenza/gate';
   /** Hostname of the top-level page. */
   site: string;
+  /** The kind of field, which the user may have turned off. */
+  kind: FieldKind;
 }
 
 export interface GateResponse {

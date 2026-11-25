@@ -13,5 +13,6 @@ describe('settings defaults', () => {
     expect(s.goals).toEqual({ formality: 'any', audience: 'any' });
     expect(s.dailyLimit).toBeNull();
     expect(s.disabledSites).toEqual([]);
+    expect(s.fieldKinds).toEqual({ input: true, textarea: true, rich: true });
   });
 });

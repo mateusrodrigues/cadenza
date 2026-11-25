@@ -1,4 +1,13 @@
+import type { FieldKind } from './settings';
+
 export type FieldElement = HTMLTextAreaElement | HTMLInputElement | HTMLElement;
+
+/** Which of the kinds of field a user can turn off this one is. */
+export function fieldKind(field: FieldElement): FieldKind {
+  if (field instanceof HTMLTextAreaElement) return 'textarea';
+  if (field instanceof HTMLInputElement) return 'input';
+  return 'rich';
+}
 
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', '']);
 const BLOCKED_AUTOCOMPLETE = /\b(cc-|one-time-code|current-password|new-password)/;
