@@ -12,7 +12,8 @@ store privacy policy (Phase 10) is written from it.
 - **No Cadenza server, analytics, crash reporting or update checks.** The extension makes no
   other requests. Chrome itself updates the extension from the store.
 - **Never sent:** password fields, payment fields (`autocomplete="cc-*"`), one-time codes,
-  fields marked `data-cadenza="off"`, code editors, sites the user turned off, or anything while
+  fields marked `data-cadenza="off"`, code editors, Google Docs (not supported yet; the content
+  script stops before watching anything), sites the user turned off, or anything while
   Cadenza is switched off. Text is only read from fields the user focuses.
 - **Not even read while off.** Before each check the content script asks the worker whether
   Cadenza is on for the page (`cadenza/gate`, which carries the site and no text). While it is

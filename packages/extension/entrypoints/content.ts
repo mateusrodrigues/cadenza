@@ -3,12 +3,15 @@ import { defineContentScript } from 'wxt/utils/define-content-script';
 import { type FieldElement, resolveField } from '../lib/fields';
 import type { KeyboardMessage, RefreshMessage } from '../lib/messages';
 import { FieldSession } from '../lib/session';
+import { unsupportedEditor } from '../lib/sites';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
   runAt: 'document_idle',
   main(ctx) {
+    // Not in editors Cadenza can't work in yet (Google Docs): watch nothing, read nothing.
+    if (unsupportedEditor(location.href)) return;
     const sessions = new Map<FieldElement, FieldSession>();
 
     const watch = (target: EventTarget | null) => {

@@ -48,7 +48,7 @@ import {
   type Settings,
   saveSettings,
 } from '../lib/settings';
-import { hostOf, siteIsOff } from '../lib/sites';
+import { hostOf, siteIsOff, unsupportedEditor } from '../lib/sites';
 import { checksToday, loadUsage, recordUsage } from '../lib/usage';
 
 const scheduler = new CheckScheduler(2000, sessionCacheStore);
@@ -237,6 +237,8 @@ function offReason(
   frameURL: string | undefined,
 ): OffReason | null {
   if (!settings.enabled) return 'disabled';
+  // The content script stays out of these; this is the backstop.
+  if (unsupportedEditor(frameURL)) return 'site';
   const sites = [typeof site === 'string' ? site : null, hostOf(frameURL)];
   if (sites.some((h) => h && siteIsOff(h, settings.disabledSites))) return 'site';
   if (!activeProvider(settings)) return 'setup';

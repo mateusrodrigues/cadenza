@@ -365,3 +365,37 @@ test('while off on a site, the field is not read: no text reaches the worker', a
   await expect(page.locator('cadenza-overlay[data-count="1"]')).toHaveCount(2);
   expect(await checks()).toBeGreaterThan(before ?? 0);
 });
+
+test('Google Docs: Cadenza stays out (support is coming), other Google pages still work', async ({
+  context,
+  worker,
+}) => {
+  // Stand-in pages at the real addresses; nothing goes to the network.
+  await context.route('https://docs.google.com/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><textarea id="t" rows="4" cols="60"></textarea>',
+    }),
+  );
+  const checks = () =>
+    worker.evaluate(() =>
+      (globalThis as { cadenzaChecksReceived?: () => number }).cadenzaChecksReceived?.(),
+    );
+  const before = await checks();
+
+  const doc = await context.newPage();
+  await doc.goto('https://docs.google.com/document/d/test/edit');
+  await doc.locator('#t').click();
+  await doc.keyboard.type('Read teh book.');
+  await doc.waitForTimeout(1500);
+  await expect(doc.locator('cadenza-overlay')).toHaveCount(0);
+  await expect(doc.locator('cadenza-badge')).toHaveCount(0);
+  expect(await checks()).toBe(before);
+
+  // The same page elsewhere on docs.google.com (Forms) is checked as usual.
+  const form = await context.newPage();
+  await form.goto('https://docs.google.com/forms/d/test/viewform');
+  await form.locator('#t').click();
+  await form.keyboard.type('Read teh book.');
+  await expect(form.locator('cadenza-overlay[data-count="1"]')).toHaveCount(1);
+});

@@ -279,6 +279,28 @@ body.popup {
   font-size: var(--cdz-font-size-sm);
 }
 
+.popup-note {
+  display: flex;
+  gap: var(--cdz-space-2);
+  background: var(--cdz-color-accent-soft);
+  font-size: var(--cdz-font-size-sm);
+  line-height: 18px;
+}
+
+.popup-note svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--cdz-color-accent);
+}
+
+.popup-note p {
+  margin: 0;
+}
+
+.popup-note strong {
+  font-weight: var(--cdz-weight-semibold);
+}
+
 .popup-provider {
   display: grid;
   gap: var(--cdz-space-2);

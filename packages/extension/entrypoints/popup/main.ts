@@ -8,7 +8,7 @@ import {
   type Settings,
   saveSettings,
 } from '../../lib/settings';
-import { hostOf, siteIsOff, turnSiteOff, turnSiteOn } from '../../lib/sites';
+import { hostOf, siteIsOff, turnSiteOff, turnSiteOn, unsupportedEditor } from '../../lib/sites';
 import { loadUsage, today } from '../../lib/usage';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -68,10 +68,10 @@ async function renderToday(settings: Settings) {
   }
 }
 
-/** The site of the tab the popup was opened on (activeTab grants its URL on click). */
-async function currentSite(): Promise<string | null> {
+/** The URL of the tab the popup was opened on (activeTab grants it on click). */
+async function currentURL(): Promise<string | undefined> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  return hostOf(tab?.url);
+  return tab?.url;
 }
 
 function showSite(site: string, off: boolean) {
@@ -90,8 +90,15 @@ async function init() {
     await saveSettings({ ...settings, enabled });
   });
 
-  const site = await currentSite();
-  if (site) {
+  const url = await currentURL();
+  const site = hostOf(url);
+  const editor = unsupportedEditor(url);
+  if (editor) {
+    // Cadenza stays out of this editor, so the site switch would do nothing.
+    $('unsupported-title').textContent = `${editor} support is coming soon.`;
+    $('unsupported-text').textContent = `Until then, Cadenza is off in ${editor}.`;
+    $('unsupported').hidden = false;
+  } else if (site) {
     const settings = await loadSettings();
     showSite(site, siteIsOff(site, settings.disabledSites));
     $('site-row').hidden = false;

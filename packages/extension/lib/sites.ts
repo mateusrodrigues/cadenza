@@ -47,6 +47,21 @@ export function pageSite(): string {
   }
 }
 
+/**
+ * Editors Cadenza can't work in yet, by name: their text isn't in the page (Google Docs draws
+ * on a canvas). Cadenza stays out of them entirely, and the popup says support is coming.
+ */
+export function unsupportedEditor(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'docs.google.com' && u.pathname.startsWith('/document/')) {
+      return 'Google Docs';
+    }
+  } catch {}
+  return null;
+}
+
 /** The site list part of the settings. */
 interface SiteList {
   disabledSites: string[];

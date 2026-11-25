@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hostOf, normalizeSite, siteIsOff, turnSiteOff, turnSiteOn } from './sites';
+import {
+  hostOf,
+  normalizeSite,
+  siteIsOff,
+  turnSiteOff,
+  turnSiteOn,
+  unsupportedEditor,
+} from './sites';
 
 describe('sites', () => {
   it('normalizes what the user types to a hostname', () => {
@@ -39,5 +46,27 @@ describe('sites', () => {
     expect(popup.siteOffSince).toEqual({ 'mail.other.com': '2026-11-20' });
     // Settings turns on one entry only.
     expect(turnSiteOn(s, 'docs.example.com', true).disabledSites).toHaveLength(2);
+  });
+});
+
+describe('unsupportedEditor', () => {
+  it('names Google Docs documents', () => {
+    expect(unsupportedEditor('https://docs.google.com/document/d/abc/edit')).toBe('Google Docs');
+    expect(unsupportedEditor('https://docs.google.com/document/u/1/d/abc/edit#heading')).toBe(
+      'Google Docs',
+    );
+  });
+
+  it('leaves other Google pages and other sites alone', () => {
+    for (const url of [
+      'https://docs.google.com/forms/d/abc/viewform',
+      'https://docs.google.com/spreadsheets/d/abc/edit',
+      'https://mail.google.com/mail/u/0/',
+      'https://example.com/document/x',
+      'not a url',
+      undefined,
+    ]) {
+      expect(unsupportedEditor(url)).toBeNull();
+    }
   });
 });

@@ -539,7 +539,8 @@ keyboards. The checklist is `docs/testing.md`; results and bugs are recorded the
 
 ### Later (not v1)
 
-Google Docs (canvas-rendered, needs its own integration), Firefox/Safari, per-site provider
+Google Docs (canvas-rendered, needs its own integration; until then Cadenza stays out of Docs
+and the popup says support is coming), Firefox/Safari, per-site provider
 choice, a second "deep review" model, full-document and tone rewrites, Bedrock/Vertex, Chrome's
 built-in on-device model, desktop app.
 

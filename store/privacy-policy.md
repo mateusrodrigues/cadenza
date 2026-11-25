@@ -21,6 +21,7 @@ when Cadenza is switched on for that site. It never reads:
 
 - password fields, payment card fields or one-time-code fields;
 - code editors;
+- Google Docs documents, which Cadenza doesn't support yet;
 - fields a website marks as not to be checked;
 - anything on a site you have turned Cadenza off for, or anything at all while Cadenza is
   switched off.
