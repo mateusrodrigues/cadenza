@@ -8,6 +8,7 @@ export * from './anthropic.js';
 export * from './errors.js';
 export * from './gemini.js';
 export * from './mock.js';
+export * from './model-size.js';
 export * from './openai-compatible.js';
 export * from './presets.js';
 export * from './types.js';

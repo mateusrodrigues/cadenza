@@ -21,36 +21,57 @@ Latency was measured with 4 requests at a time; a single check is likely a littl
 
 ## Local model
 
-| Model (server)                      | Prompt | Samples                | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | p50 / p95    |
-| ----------------------------------- | ------ | ---------------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------------ |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking off ³ | v5 ⁴ | 205 | 99% | 96% | 2.4 (4 in 851 words) | 98% / 97% | 0.8 / 2.0 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on | v5 ⁴ | 205, 66 failed | 100% ⁵ | 100% ⁵ | 0 (in 694 words) ⁵ | 100% / 100% ⁵ | 4.8 / 13.8 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192 ⁶ | v5 ⁴ | 205, 35 failed | 100% ⁵ | 100% ⁵ | 0 (in 769 words) ⁵ | 100% / 100% ⁵ | 5.8 / 41.3 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192, temperature 1.0 ⁷ | v5 ⁴ | 205, 1 failed | 98% | 97% | 0.6 (1 in 851 words) | 100% / 98% | 6.4 / 68.4 s |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v3 ²   | 71 (every third)       | 91%                   | 76%               | 10.2 (6 in 293 words)             | 97% / 86%                 | 13 / 26 s    |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M) | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
+| Model (server)                                            | Prompt | Samples                | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | p50 / p95    |
+| --------------------------------------------------------- | ------ | ---------------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------------ |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking off ⁶ | v5 ⁷ | 205 | 99% | 96% | 2.4 (4 in 851 words) | 98% / 97% | 0.8 / 2.0 s |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on | v5 ⁷ | 205, 66 failed | 100% ⁸ | 100% ⁸ | 0 (in 694 words) ⁸ | 100% / 100% ⁸ | 4.8 / 13.8 s |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192 ⁹ | v5 ⁷ | 205, 35 failed | 100% ⁸ | 100% ⁸ | 0 (in 769 words) ⁸ | 100% / 100% ⁸ | 5.8 / 41.3 s |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192, temperature 1.0 ¹⁰ | v5 ⁷ | 205, 1 failed | 98% | 97% | 0.6 (1 in 851 words) | 100% / 98% | 6.4 / 68.4 s |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v3 ²   | 71 (every third)       | 91%                   | 76%               | 10.2 (6 in 293 words)             | 97% / 86%                 | 13 / 26 s    |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
+| `microsoft/phi-4-reasoning-plus` (LM Studio, CPU, Q4_K_M) | v3 ³   | 71 (every third)       | 79%                   | 62%               | 5.1 (3 in 293 words)              | 97% / 74%                 | 19 / 26 s    |
+| `meta-llama-3.1-8b-instruct` (LM Studio, CPU, Q4_K_M)     | v3 ⁴   | 71 (every third)       | 43%                   | 33%               | 68.3 (40 in 293 words)            | 80% / 60%                 | 15 / 16 s    |
+| `llama3.2:3b` (Ollama 0.40.18, Apple silicon)             | v3 ⁵   | 71 (every third)       | 35%                   | 38%               | 85.3 (50 in 293 words)            | 97% / 77%                 | –            |
 
 ¹ 4 requests at a time on one CPU; the server's throughput was ~17–30 s per sample.
 ² Run with prompt v4 and no goals set, which is the v3 text exactly; one request at a time.
-³ The eval sent `reasoning_effort: "none"` (`--reasoning-effort none`). The extension now
+³ Run 2026-11-26 with prompt v5 and no goals set (the v3 text); one request at a time.
+⁴ Run 2026-11-26 with prompt v5 and no goals set (the v3 text); one request at a time,
+`json_schema` output. Scored with the deletion guard (below); without it: 40% / 31%, 70.0,
+83% / 57%.
+⁵ Prompt v5, no goals (the v3 text); from issue #1, before the deletion guard. The engine also
+dropped 108 of its suggestions that didn't anchor or changed nothing.
+⁶ The eval sent `reasoning_effort: "none"` (`--reasoning-effort none`). The extension now
 sends the same with the thinking switch off (see "The thinking switch" below).
-⁴ Run 2026-11-26 with no goals set, which is the v3 text exactly. One request at a time on an
+⁷ Run 2026-11-26 with no goals set, which is the v3 text exactly. One request at a time on an
 Apple M5 Max with 36 GB of memory.
-⁵ Of the 139 samples that completed. The other 66 ran out of output tokens while the model was
+⁸ Of the 139 samples that completed. The other 66 ran out of output tokens while the model was
 still thinking, and most of them were clarity, style and tone samples. These numbers are
 therefore biased toward easy samples.
-⁶ The eval sent `max_tokens: 8192` (`--max-tokens 8192`) instead of the engine's budget.
-⁷ Also `temperature: 1` (`--temperature 1`) instead of the 0 that Cadenza sends to local
+⁹ The eval sent `max_tokens: 8192` (`--max-tokens 8192`) instead of the engine's budget.
+¹⁰ Also `temperature: 1` (`--temperature 1`) instead of the 0 that Cadenza sends to local
 servers. One run only: at this temperature the results vary between runs, and that variation
 is not measured yet.
 
-phi4 is accurate on mistakes but noisier on clean text: it reworded a correct "principle",
+`phi4-14b` is accurate on mistakes but noisier on clean text: it reworded a correct "principle",
 rewrote parts of a prompt-injection sample (without following the injected instruction), and
 added synonyms next to real fixes ("came to" → "attended"). It's usable in slow model mode
 for occasional checks, not for live underlines. On v3 it found more clarity, style and tone
 issues than on v2 and, with that, flagged more clean text (10.2 vs 5.1 per 500 words, on the
 same samples).
+
+`microsoft/phi-4-reasoning-plus` answered with plain JSON (no reasoning text; ~57 output
+tokens per sample) and never failed to parse, but it misuses `""` (delete): 21 of its 66
+suggestions were deletions, and 11 of those were wrong. It deleted sentence endings as
+"filler" ("afternoon.", "tomorrow.", "last week."), deleted the mistake instead of
+fixing it ("the the" → "", "discussed about" → ""), and twice deleted a whole sentence it
+thought had a punctuation problem. Accepting any of those would remove the user's text. It
+also added a stray quote to a fix ("Their" → "'They're"), changed a correct "principal" to
+"principle", and reworded part of a prompt-injection sample ("going to" → "will") without
+following the injected instruction. Below the exit target and worse than `phi4-14b` on
+the same slice; not recommended. With the deletion guard (below) the same answers score 87%
+correctness precision, 74% overall; still the weakest local model measured.
 
 `gemma4:26b-mlx` with thinking off is the first local model that is fast enough for live
 underlines (0.8 s p50, faster than the hosted model). Its correctness precision (99%) is close
@@ -119,6 +140,49 @@ What the switch does:
 With thinking on, no check failed and nothing on clean text was flagged, but the slowest check
 took 147 s. The style numbers rest on 5 issues, so 40% and 60% differ by one issue.
 
+`microsoft/phi-4-reasoning-plus` in LM Studio returned no reasoning text (see above), so the
+switch does not show for it.
+
+## Small local models
+
+Neither small model measured is usable. `llama3.2:3b` makes 85 false positives per 500 words
+of clean text and `meta-llama-3.1-8b-instruct` 68, against a target of 1; fewer than 4 in 10
+of either's suggestions are right. The deletion guard barely helps the 8B (70.0 → 68.3 per 500
+words, 31% → 33% precision): most of its noise is rewording, not deleting. The 8B returned exactly two edits for 70 of the 71 samples,
+clean or not: words deleted ("quarterly" → ""), plain words swapped for fancier ones
+("review" → "examination"), and the injected instruction in a prompt-injection sample "fixed"
+by deleting it. It also finds and fixes fewer real mistakes than the 3B (80% / 60% vs 97% /
+77%).
+
+Many of the 3B's edits make correct text wrong: "This" → "This is" (giving "This is is another
+email"), "How" → "How are you doing?" on a sentence that already said it. Ruled out as causes
+on the 3B: prompt truncation (~500 tokens in a 32,768 context), sampling (local endpoints get
+temperature 0) and the output tier (`json_object` gives the same cards, `prompted` more wrong
+ones).
+
+Scratch experiments on the 3B, not shipped:
+
+| Prompt                                                                                                                           | Clean FP / 500 words | Precision | Correctness found / fixed |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------- | ------------------------- |
+| v5, unchanged                                                                                                                    | 85.3                 | 38%       | 97% / 77%                 |
+| v5 plus three examples (two clean paragraphs → `[]`, one with two mistakes) and "Most paragraphs people write have no mistakes." | 22.2                 | 60%       | 86% / 66%                 |
+| The same, with correctness the only category on                                                                                  | 32.4                 | –         | –                         |
+
+With fewer categories, the model labels the same invented edits as correctness, so turning
+categories off is no workaround. A filter for edits that repeat an adjacent word ("is is")
+caught 13 of 99 wrong suggestions and dropped 3 of 61 right ones. None comes near the target,
+so instead of tuning for small models Cadenza warns when one is chosen: onboarding and the
+Provider settings say "This model is small" when a local server reports fewer than **9B**
+parameters (`SMALL_MODEL_PARAMS` in `packages/extension/lib/model-size.ts`). Sizes come from
+the server at runtime: Ollama's `/api/tags` (`details.parameter_size`), LM Studio's
+`/api/v1/models` (`params_string`) and llama.cpp's `/v1/models` (`meta.n_params`). vLLM and
+hosted providers report no size, so they never get the warning.
+
+The limit sits just above the measured 8B (unusable), so every "8B" model (Ollama reports
+8.0–8.2B for the common ones) gets the warning, and below the measured 14B (usable in slow
+model mode). 9–13B models haven't been measured; measure one before moving the limit up to
+cover them.
+
 ## Recommended models
 
 | Use                   | Model                          | Why                                                                                    |
@@ -127,7 +191,8 @@ took 147 s. The style numbers rest on 5 issues, so 40% and 60% differ by one iss
 | Local, CPU only       | `phi4-14b`, slow model mode    | Accurate on mistakes; expect ~5 false positives per 500 words and ~1 min per paragraph |
 
 Only measured models are listed. OpenAI, Gemini, OpenRouter, Mistral, Groq and the other
-presets haven't been run (no keys here), and no small (≤ 8B) local model has been tried yet.
+presets haven't been run (no keys here). The small local models tried, 3B and 8B, aren't
+usable (see above); 9–13B is unmeasured.
 To add one: `CADENZA_EVAL_API_KEY=… npm run eval -- --preset <preset> --model <id>`.
 
 ## Prompt history (`claude-haiku-5-5`, all 205 samples)
@@ -187,6 +252,26 @@ Not measured yet: the other goal values (casual, neutral, experts).
   temperature 0; hosted ones are left alone (some reasoning models reject a temperature).
 - **Compact JSON** cut phi4's output from ~77 to ~48 tokens per suggestion, about 40% faster
   on CPU.
+- **Deletions that removed the user's text.** `microsoft/phi-4-reasoning-plus` answered `""`
+  when it had no fix: it deleted "the the" outright, cut "afternoon." off a sentence, and
+  deleted whole sentences. The engine now drops a deletion that empties the paragraph, takes a
+  sentence's ending punctuation without the rest of the sentence, or (for correctness) spans
+  more than one word. Re-scoring the saved runs with the guard (`--rescore --reanchor`; same
+  model answers):
+
+  | Run                                   | Correctness precision | Overall precision | Wrong fix + fp | Correctness found |
+  | ------------------------------------- | --------------------- | ----------------- | -------------- | ----------------- |
+  | `claude-haiku-5-5`, v2, v3, v5 formal | unchanged             | unchanged         | unchanged      | unchanged         |
+  | `phi4-14b`, v2                        | 94% → 97%             | 87% → 88%         | 7 → 6          | 97% → 94%         |
+  | `phi4-14b`, v3                        | 91% → 94%             | 76% → 77%         | 15 → 14        | 97% → 94%         |
+  | `phi4-14b`, v4 / v5 formal            | unchanged             | unchanged         | unchanged      | unchanged         |
+  | `microsoft/phi-4-reasoning-plus`, v3  | 79% → 87%             | 62% → 74%         | 24 → 14        | 97% → 86%         |
+  | `meta-llama-3.1-8b-instruct`, v3      | 40% → 43%             | 31% → 33%         | 88 → 82        | 83% → 80%         |
+
+  No correct suggestion was dropped in any run. "Found" falls only because a wrong deletion
+  used to count as finding the issue it destroyed. "Fixed" is unchanged everywhere except
+  the 8B, where it rises (57% → 60%): on "Do you want to come with us." it sent both "us." → ""
+  and the right whole-sentence fix, and the overlapping deletion used to win.
 
 ## Known gaps
 

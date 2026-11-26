@@ -143,6 +143,33 @@ describe('anchorSuggestions', () => {
     expect(out).toEqual([]);
   });
 
+  it('drops deletions that would remove more than a wrong word', () => {
+    const del = (text: string, original: string, category = 'correctness') => {
+      const ps = splitParagraphs(text);
+      const stats = { dropped: 0 };
+      const out = anchorSuggestions(
+        [{ pid: ps[0]?.pid, original, replacement: '', category }],
+        ps,
+        stats,
+      );
+      return { kept: out.map((s) => s.original), dropped: stats.dropped };
+    };
+    // The whole paragraph, a sentence's ending, a multi-word correctness phrase.
+    expect(del('Do you want to come with us.', 'Do you want to come with us.')).toEqual({
+      kept: [],
+      dropped: 1,
+    });
+    expect(del('It is due Wednesday afternoon.', 'afternoon.', 'style').dropped).toBe(1);
+    expect(del('Send the the link.', 'the the').dropped).toBe(1);
+    expect(del('We discussed about it.', 'discussed about').dropped).toBe(1);
+    // One wrong word, a filler word, a whole extra sentence of tone.
+    expect(del('Send the the link.', 'the').kept).toEqual(['the']);
+    expect(del('It was really good.', 'really', 'style').kept).toEqual(['really']);
+    expect(del('Could you look? Sorry again!', 'Sorry again!', 'tone').kept).toEqual([
+      'Sorry again!',
+    ]);
+  });
+
   it('resolves overlaps in favor of correctness', () => {
     const out = anchorSuggestions(
       [

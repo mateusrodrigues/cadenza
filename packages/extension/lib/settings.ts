@@ -212,7 +212,19 @@ export function updateSettings(change: (s: Settings) => Settings | void): Promis
 export function migrate(stored: Record<string, unknown> | undefined): Settings {
   if (!stored) return structuredClone(DEFAULT_SETTINGS);
   if (stored.version === 2) {
-    return { ...structuredClone(DEFAULT_SETTINGS), ...(stored as Partial<Settings>), version: 2 };
+    const settings: Settings = {
+      ...structuredClone(DEFAULT_SETTINGS),
+      ...(stored as Partial<Settings>),
+      version: 2,
+    };
+    // Onboarding could save the same provider twice; keep the first entry for each id.
+    const seen = new Set<string>();
+    settings.providers = settings.providers.filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+    return settings;
   }
   // v1: a single `provider` plus `check` settings.
   const v1 = stored as {

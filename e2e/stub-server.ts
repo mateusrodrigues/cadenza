@@ -54,7 +54,9 @@ export async function startStubServer(port: number): Promise<StubServer> {
       }
       res.writeHead(200, { ...cors, 'content-type': 'application/json' });
       if (req.url?.endsWith('/models')) {
-        res.end(JSON.stringify({ object: 'list', data: [{ id: 'stub-model', object: 'model' }] }));
+        // Sized like llama.cpp reports it, under the small-model limit, so the warning shows.
+        const model = { id: 'stub-model', object: 'model', meta: { n_params: 3_212_749_888 } };
+        res.end(JSON.stringify({ object: 'list', data: [model] }));
         return;
       }
       const request = JSON.parse(body || '{}') as {
