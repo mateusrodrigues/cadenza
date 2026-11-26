@@ -114,6 +114,8 @@ export interface SampleResult {
   error?: { kind: string; message: string };
   tier?: string;
   dropped?: number;
+  /** Thinking ran out of tokens and the engine asked again without it. */
+  thinkingFellBack?: boolean;
   outputTokens?: number | null;
   suggestions: Suggestion[];
   /** The model's raw items, so engine changes can be re-scored with --reanchor. */

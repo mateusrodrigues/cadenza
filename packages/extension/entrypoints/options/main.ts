@@ -22,6 +22,7 @@ import {
   newProvider,
   type SavedProvider,
   type Settings,
+  thinkingFor,
   updateSettings,
 } from '../../lib/settings';
 import { $ } from './dom';
@@ -48,6 +49,8 @@ const el = {
   loadModels: $<HTMLButtonElement>('load-models'),
   explanations: $<HTMLInputElement>('explanations'),
   slowMode: $<HTMLInputElement>('slow-mode'),
+  thinkingRow: $<HTMLDivElement>('thinking-row'),
+  thinking: $<HTMLInputElement>('thinking'),
   test: $<HTMLButtonElement>('test'),
   use: $<HTMLButtonElement>('use'),
   cancel: $<HTMLButtonElement>('cancel'),
@@ -254,6 +257,14 @@ function fillEditor() {
   }
   el.explanations.checked = editing.explanations;
   el.slowMode.checked = editing.slowMode;
+  el.thinking.checked = editing.thinking ?? false;
+  showThinking();
+}
+
+/** The thinking switch shows only for a model seen thinking (in a test or a check). */
+function showThinking() {
+  const model = el.model.value || editing?.model;
+  el.thinkingRow.hidden = !model || editing?.thinkingModel !== model;
 }
 
 function showKey(show: boolean) {
@@ -273,6 +284,7 @@ function readEditor(): SavedProvider {
   editing.model = el.model.value || null;
   editing.explanations = el.explanations.checked;
   editing.slowMode = el.slowMode.checked;
+  editing.thinking = el.thinking.checked;
   return editing;
 }
 
@@ -320,12 +332,24 @@ async function test() {
     type: 'cadenza/test',
     config: configOf(p),
     explanations: p.explanations,
+    ...(thinkingFor(p) ? { thinking: thinkingFor(p) } : {}),
   });
   if (!res.ok) return showError(res.error, p, test);
   const found = res.found.map((f) => `“${f.original}” → “${f.replacement}”`).join(', ');
   const n = res.found.length;
+  const firstSeen = res.reasoned && p.thinkingModel !== p.model;
+  let note = '';
+  if (res.thinkingFellBack) {
+    note = ' It thought for too long, so Cadenza asked again without thinking.';
+  } else if (firstSeen) {
+    note = ' This model thinks before it answers. You can turn that on below.';
+  }
+  if (res.reasoned && p.model) {
+    p.thinkingModel = p.model;
+    showThinking();
+  }
   say(
-    `Connected. Replied in ${(res.ms / 1000).toFixed(1)} s with ${n} suggestion${n === 1 ? '' : 's'}${found ? `: ${found}` : ''}.`,
+    `Connected. Replied in ${(res.ms / 1000).toFixed(1)} s with ${n} suggestion${n === 1 ? '' : 's'}${found ? `: ${found}` : ''}.${note}`,
     'ok',
   );
 }
@@ -606,6 +630,11 @@ function wireProviderForm() {
   el.showKey.addEventListener('click', () => showKey(el.apiKey.type === 'password'));
   el.loadModels.addEventListener('click', () => void loadModels());
   el.test.addEventListener('click', () => void test());
+  el.model.addEventListener('change', () => showThinking());
+  el.thinking.addEventListener('change', () => {
+    // A thinking check can take a minute; slow mode waits for it.
+    if (el.thinking.checked) el.slowMode.checked = true;
+  });
   el.use.addEventListener('click', () => void useProvider());
   el.remove.addEventListener('click', () => void deleteProvider());
   el.cancel.addEventListener('click', () => openDefault());

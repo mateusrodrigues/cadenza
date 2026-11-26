@@ -8,6 +8,7 @@
  *   … --reasoning-effort none            (OpenAI-compatible only, e.g. Ollama thinking off)
  *   … --max-tokens 8192                  (OpenAI-compatible only, overrides the output limit)
  *   … --temperature 1                    (OpenAI-compatible only, overrides local temperature 0)
+ *   … --thinking on|off                  (what the extension sends with the thinking switch)
  *
  * The API key is read only from CADENZA_EVAL_API_KEY, never from the command line.
  * Results are saved after every sample; --resume <file> continues an interrupted run.
@@ -26,6 +27,7 @@ import {
   getPreset,
   OpenAICompatibleProvider,
   ProviderError,
+  type ThinkingMode,
 } from '@cadenza/providers';
 import { CATEGORY_IDS, type CheckSettings, type Goals } from '@cadenza/shared';
 import { loadCorpus, type Sample } from './corpus.js';
@@ -49,6 +51,8 @@ interface RunFile {
     maxTokens?: number;
     /** Sent as temperature on every request instead of the provider's choice (eval only). */
     temperature?: number;
+    /** The extension's thinking switch for a model seen thinking (absent: not seen thinking). */
+    thinking?: ThinkingMode;
   };
   results: SampleResult[];
   summary?: Summary;
@@ -79,6 +83,8 @@ const { values: args } = parseArgs({
     'max-tokens': { type: 'string' },
     /** OpenAI-compatible only: temperature to send instead of the provider's choice. */
     temperature: { type: 'string' },
+    /** The extension's thinking switch: on or off. Absent: as for a model not seen thinking. */
+    thinking: { type: 'string' },
   },
 });
 
@@ -181,9 +187,15 @@ function newRun(): RunFile {
       ...(args['reasoning-effort'] ? { reasoningEffort: args['reasoning-effort'] } : {}),
       ...(args['max-tokens'] ? { maxTokens: Number(args['max-tokens']) } : {}),
       ...(args.temperature !== undefined ? { temperature: Number(args.temperature) } : {}),
+      ...(args.thinking ? { thinking: parseThinking(args.thinking) } : {}),
     },
     results: [],
   };
+}
+
+function parseThinking(value: string): ThinkingMode {
+  if (value !== 'on' && value !== 'off') throw new Error('--thinking must be on or off');
+  return value;
 }
 
 function parseGoals(): Goals {
@@ -221,7 +233,7 @@ function defaultOutPath(meta: RunFile['meta']): string {
   const g = meta.goals;
   const goals = g && (g.formality !== 'any' || g.audience !== 'any');
   const slug =
-    `${meta.preset}-${meta.model}${goals ? `-${g.formality}-${g.audience}` : ''}${meta.reasoningEffort ? `-reasoning-${meta.reasoningEffort}` : ''}${meta.maxTokens ? `-max${meta.maxTokens}` : ''}${meta.temperature !== undefined ? `-t${meta.temperature}` : ''}`.replace(
+    `${meta.preset}-${meta.model}${goals ? `-${g.formality}-${g.audience}` : ''}${meta.reasoningEffort ? `-reasoning-${meta.reasoningEffort}` : ''}${meta.maxTokens ? `-max${meta.maxTokens}` : ''}${meta.temperature !== undefined ? `-t${meta.temperature}` : ''}${meta.thinking ? `-thinking-${meta.thinking}` : ''}`.replace(
       /[^a-zA-Z0-9.-]+/g,
       '_',
     );
@@ -244,6 +256,7 @@ async function runSample(sample: Sample): Promise<SampleResult> {
       paragraphs: splitParagraphs(sample.text),
       settings,
       ...(tier ? { tier: tier as never } : {}),
+      ...(run.meta.thinking ? { thinking: run.meta.thinking } : {}),
     });
     tier = outcome.tier;
     return {
@@ -251,6 +264,7 @@ async function runSample(sample: Sample): Promise<SampleResult> {
       ms: Math.round(performance.now() - t0),
       tier: outcome.tier,
       dropped: outcome.dropped,
+      ...(outcome.thinkingFellBack ? { thinkingFellBack: true } : {}),
       outputTokens: outcome.usage?.outputTokens ?? null,
       suggestions: outcome.suggestions,
       items: outcome.items,
@@ -276,7 +290,8 @@ function printSummary({ meta, summary }: RunFile) {
       (meta.goals ? `, goals ${meta.goals.formality}/${meta.goals.audience}` : '') +
       (meta.reasoningEffort ? `, reasoning_effort ${meta.reasoningEffort}` : '') +
       (meta.maxTokens ? `, max_tokens ${meta.maxTokens}` : '') +
-      (meta.temperature !== undefined ? `, temperature ${meta.temperature}` : ''),
+      (meta.temperature !== undefined ? `, temperature ${meta.temperature}` : '') +
+      (meta.thinking ? `, thinking ${meta.thinking}` : ''),
   );
   console.log(
     `samples ${summary.samples}, errors ${summary.errors}, dropped items ${summary.dropped}`,

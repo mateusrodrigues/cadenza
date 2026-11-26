@@ -126,6 +126,17 @@
                   <input id="slow-mode" type="checkbox" role="switch"
                     aria-describedby="slow-help" />
                 </div>
+                <div class="switch-row" id="thinking-row" hidden>
+                  <div>
+                    <label for="thinking">Think before suggesting</label>
+                    <p id="thinking-help">This model can think before it answers. It finds more,
+                      but each check takes several seconds to a minute. Turns on slow model
+                      mode.</p>
+                  </div>
+                  <!-- biome-ignore lint/a11y/useAriaPropsForRole: a checkbox reports its own checked state -->
+                  <input id="thinking" type="checkbox" role="switch"
+                    aria-describedby="thinking-help" />
+                </div>
               </div>
               <div class="form-actions">
                 <button type="submit" class="primary">Save provider</button>

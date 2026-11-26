@@ -33,8 +33,8 @@ Latency was measured with 4 requests at a time; a single check is likely a littl
 
 ¹ 4 requests at a time on one CPU; the server's throughput was ~17–30 s per sample.
 ² Run with prompt v4 and no goals set, which is the v3 text exactly; one request at a time.
-³ The eval sent `reasoning_effort: "none"` (`--reasoning-effort none`). The extension does not
-send it, so in the extension today this model always thinks.
+³ The eval sent `reasoning_effort: "none"` (`--reasoning-effort none`). The extension now
+sends the same with the thinking switch off (see "The thinking switch" below).
 ⁴ Run 2026-11-26 with no goals set, which is the v3 text exactly. One request at a time on an
 Apple M5 Max with 36 GB of memory.
 ⁵ Of the 139 samples that completed. The other 66 ran out of output tokens while the model was
@@ -65,8 +65,8 @@ paragraph. All 5 prompt-injection samples got only their real fix.
 With thinking on, 66 of 205 checks failed. Ollama counts the reasoning against `max_tokens`,
 and a short paragraph gets 1,024 tokens, so the model often stopped before it wrote the JSON.
 The checks that completed were exact (no false positives), but each one took about 6 times
-longer (4.8 s p50, 13.8 s p95). In the extension today this model fails about one check in
-three.
+longer (4.8 s p50, 13.8 s p95). Before the thinking switch, this model failed about one
+check in three in the extension.
 
 A larger budget does not fix this. With `max_tokens` 8,192, 35 of 205 checks still used every
 token, and each one took 70 to 135 s. The checks that completed used 361 tokens at p50, 2,744
@@ -90,6 +90,34 @@ Thinking needs a large budget. The checks used 479 tokens at p50, 3,363 at p90, 
 and 7,432 at most. 65 of the 204 completed checks used more than 1,024 tokens, and 16 used more
 than 4,096. The time is the cost: 6.4 s at p50, 54 s at p90 and 68 s at p95. Thinking on fits
 slow model mode only. Thinking off (0.8 s p50) stays the choice for live underlines.
+
+## The thinking switch
+
+The extension now has a "Think before suggesting" switch in each provider's settings. It
+shows only after the chosen model is seen thinking, in the connection test or in a check, and
+it is off by default. These runs go through the same code (`--thinking on|off`), on
+`gemma4:26b-mlx` with no goals, one request at a time:
+
+| Thinking | Samples          | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | Clarity | Style | Tone | p50 / p95   |
+| -------- | ---------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------- | ----- | ---- | ----------- |
+| off      | 205              | 99%                   | 97%               | 1.8 (3 in 851 words)              | 98% / 97%                 | 75%     | 69%   | 100% | 0.5 / 0.8 s |
+| off      | 71 (every third) | 97%                   | 96%               | 1.7 (1 in 293 words)              | 100% / 97%                | 86%     | 60%   | 100% | 0.5 / 0.8 s |
+| on       | 71 (every third) | 100%                  | 100%              | 0 (in 293 words)                  | 100% / 100%               | 86%     | 40%   | 100% | 5.8 / 89 s  |
+
+What the switch does:
+
+- Off: the request sends `reasoning_effort: "none"`. A server that rejects the field gets the
+  request again without it, and the field is not sent to it again.
+- On: the output limit gets 8,192 more tokens (`THINKING_TOKENS`), and local servers keep
+  their own sampling instead of temperature 0 (Ollama: temperature 1, top_k 64, top_p 0.95
+  for this model). Turning it on also turns on slow model mode.
+- Before the model is seen thinking, nothing is sent, but the output limit already has room
+  to think.
+- If a thinking reply runs out of tokens, the engine asks once more with thinking off. It was
+  not needed in the 71-sample run.
+
+With thinking on, no check failed and nothing on clean text was flagged, but the slowest check
+took 147 s. The style numbers rest on 5 issues, so 40% and 60% differ by one issue.
 
 ## Recommended models
 
@@ -162,10 +190,11 @@ Not measured yet: the other goal values (casual, neutral, experts).
 
 ## Known gaps
 
-- Thinking models can spend the whole output budget on reasoning (see `gemma4:26b-mlx` above).
-  The extension cannot turn thinking off, and the budget does not allow for reasoning. At
-  temperature 0, `gemma4:26b-mlx` loops on about one check in six even with 8,192 tokens. At
-  temperature 1.0 it loops on about one check in 200.
+- Thinking models: at temperature 0, `gemma4:26b-mlx` loops on about one check in six even with
+  8,192 tokens, and at temperature 1.0 on about one check in 200. The thinking switch avoids
+  temperature 0 and retries without thinking, but a server that ignores `reasoning_effort`
+  keeps thinking with the smaller "off" budget. Anthropic and Gemini models never show the
+  switch yet: their adapters do not report thinking.
 - Recall on wordy phrases ("make a decision about", "end result") and some clichés ("Last but
   not least") is uneven; tone has only 10 samples, so its percentages move a lot per sample.
 - The second mistake in a sentence is sometimes missed ("The informations you sent were

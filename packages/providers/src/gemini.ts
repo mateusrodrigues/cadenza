@@ -75,6 +75,7 @@ export class GeminiProvider implements Provider {
       return {
         text: res.text ?? '',
         truncated: finish === 'MAX_TOKENS',
+        reasoned: false,
         usage: res.usageMetadata
           ? {
               inputTokens: res.usageMetadata.promptTokenCount ?? 0,

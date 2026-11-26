@@ -55,7 +55,15 @@ function outcomeFor(paragraphs: Paragraph[]): CheckOutcome {
       },
     ];
   });
-  return { suggestions, tier: 'json_schema', usage: null, dropped: 0, items: [] };
+  return {
+    suggestions,
+    tier: 'json_schema',
+    usage: null,
+    dropped: 0,
+    items: [],
+    reasoned: false,
+    thinkingFellBack: false,
+  };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));

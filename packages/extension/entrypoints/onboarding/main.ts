@@ -207,6 +207,8 @@ async function finish() {
     explanations: p.explanations,
   });
   if (!res.ok) return showError(res.error, finish);
+  // Remembered, so checks ask it not to think (fast) until the user turns thinking on.
+  if (res.reasoned) p.thinkingModel = p.model;
 
   const settings = await loadSettings();
   settings.providers.push(p);

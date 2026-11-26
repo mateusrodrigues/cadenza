@@ -3,6 +3,7 @@ import {
   isLocalURL,
   type ProviderConfig,
   type ProviderPreset,
+  type ThinkingMode,
 } from '@cadenza/providers';
 import {
   CATEGORY_IDS,
@@ -26,6 +27,13 @@ export interface SavedProvider extends ProviderConfig {
    * after typing, and let a running check finish while the user edits other paragraphs.
    */
   slowMode: boolean;
+  /**
+   * Let a model that thinks before it answers do so. Off by default: thinking finds more, but a
+   * check takes several seconds to a minute instead of about one. Applies only to `thinkingModel`.
+   */
+  thinking?: boolean;
+  /** The model last seen thinking before it answered; the thinking switch shows only for it. */
+  thinkingModel?: string;
   /** Whether a key is saved for it, so a locked key store can be told apart from no key. */
   hasKey?: boolean;
 }
@@ -107,6 +115,15 @@ export function newProvider(preset: ProviderPreset, baseURL = preset.baseURL): S
 
 export function activeProvider(settings: Settings): SavedProvider | null {
   return settings.providers.find((p) => p.id === settings.activeProviderId) ?? null;
+}
+
+/**
+ * What to ask the model about thinking: nothing until it has been seen thinking, then the
+ * user's choice.
+ */
+export function thinkingFor(p: SavedProvider): ThinkingMode | undefined {
+  if (!p.model || p.thinkingModel !== p.model) return undefined;
+  return p.thinking ? 'on' : 'off';
 }
 
 export function checkSettingsFor(settings: Settings, provider: SavedProvider): CheckSettings {

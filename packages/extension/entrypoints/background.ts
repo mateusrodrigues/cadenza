@@ -14,6 +14,7 @@ import {
   type Provider,
   type ProviderConfig,
   ProviderError,
+  type ThinkingMode,
 } from '@cadenza/providers';
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
@@ -49,6 +50,8 @@ import {
   type SavedProvider,
   type Settings,
   saveSettings,
+  thinkingFor,
+  updateSettings,
 } from '../lib/settings';
 import { hostOf, siteIsOff, unsupportedEditor } from '../lib/sites';
 import { checksToday, loadUsage, recordUsage } from '../lib/usage';
@@ -148,7 +151,7 @@ export default defineBackground(() => {
       case 'cadenza/list-models':
         return reply(handleListModels(msg.config));
       case 'cadenza/test':
-        return reply(handleTest(msg.config, msg.explanations));
+        return reply(handleTest(msg.config, msg.explanations, msg.thinking));
       case 'cadenza/allow-origin':
         return reply(allowOrigin(msg.origin).then((): AllowOriginResponse => ({ ok: true })));
     }
@@ -179,8 +182,9 @@ async function handleCheck(
   }
 
   const check = checkSettingsFor(settings, provider);
+  const thinking = thinkingFor(provider);
   const configKey = hash(
-    JSON.stringify([provider.presetId, provider.baseURL, model, check, PROMPT_VERSION]),
+    JSON.stringify([provider.presetId, provider.baseURL, model, check, thinking, PROMPT_VERSION]),
   );
   const tierKey = `${provider.presetId}|${provider.baseURL}|${model}`;
   const instance = getProvider(provider);
@@ -201,9 +205,11 @@ async function handleCheck(
             paragraphs,
             settings: check,
             tier: tierCache.get(tierKey) ?? 'json_schema',
+            ...(thinking ? { thinking } : {}),
             signal: s,
           });
           void recordUsage(provider, outcome.usage);
+          if (outcome.reasoned && !thinking) void rememberThinking(provider.id, model);
           return outcome;
         }, signal);
       },
@@ -271,7 +277,22 @@ async function handleListModels(config: ProviderConfig): Promise<ListModelsRespo
   }
 }
 
-async function handleTest(config: ProviderConfig, explanations: boolean): Promise<TestResponse> {
+/**
+ * The model thought before it answered: remember it, so the thinking switch shows in settings
+ * and checks ask it not to think until the user turns thinking on. Open fields check again.
+ */
+async function rememberThinking(providerId: string, model: string): Promise<void> {
+  await updateSettings((s) => {
+    const p = s.providers.find((x) => x.id === providerId);
+    if (p && p.model === model) p.thinkingModel = model;
+  }).catch(() => {});
+}
+
+async function handleTest(
+  config: ProviderConfig,
+  explanations: boolean,
+  thinking: ThinkingMode | undefined,
+): Promise<TestResponse> {
   if (!config.model) return { ok: false, error: { kind: 'config', message: 'Choose a model.' } };
   const settings = await loadSettings();
   const t0 = performance.now();
@@ -286,12 +307,15 @@ async function handleTest(config: ProviderConfig, explanations: boolean): Promis
         explanations,
         goals: settings.goals,
       },
+      ...(thinking ? { thinking } : {}),
     });
     return {
       ok: true,
       ms: Math.round(performance.now() - t0),
       tier: outcome.tier,
       found: outcome.suggestions.map(({ original, replacement }) => ({ original, replacement })),
+      reasoned: outcome.reasoned,
+      thinkingFellBack: outcome.thinkingFellBack,
     };
   } catch (err) {
     return { ok: false, error: toWorkerError(err) };

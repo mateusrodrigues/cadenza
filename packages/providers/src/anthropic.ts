@@ -87,6 +87,7 @@ export class AnthropicProvider implements Provider {
     return {
       text,
       truncated: res.stop_reason === 'max_tokens',
+      reasoned: false,
       usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
     };
   }

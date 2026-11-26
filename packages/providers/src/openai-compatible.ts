@@ -18,12 +18,15 @@ export class OpenAICompatibleProvider implements Provider {
   private readonly client: OpenAI;
   /**
    * Local servers default to sampling (llama.cpp: temperature 0.8), which makes checks vary
-   * between runs. Hosted reasoning models reject a temperature, so only local ones get 0.
+   * between runs. Hosted reasoning models reject a temperature, so only local ones get 0, and
+   * not while thinking: thinking models loop at temperature 0 until they run out of tokens.
    */
-  private readonly temperature: { temperature: number } | Record<string, never>;
+  private readonly local: boolean;
+  /** The server rejected `reasoning_effort` once; don't send it again. */
+  private noReasoningEffort = false;
 
   constructor(config: ProviderConfig, fetchImpl?: typeof fetch) {
-    this.temperature = isLocalURL(config.baseURL) ? { temperature: 0 } : {};
+    this.local = isLocalURL(config.baseURL);
     this.client = new OpenAI({
       // Local servers usually need no key, but the SDK requires a non-empty string.
       apiKey: config.apiKey || 'no-key',
@@ -61,6 +64,7 @@ export class OpenAICompatibleProvider implements Provider {
         : req.tier === 'json_object'
           ? { response_format: { type: 'json_object' as const } }
           : {};
+    const sendEffort = req.thinking === 'off' && !this.noReasoningEffort;
     try {
       const res = await this.client.chat.completions.create(
         {
@@ -71,7 +75,9 @@ export class OpenAICompatibleProvider implements Provider {
             { role: 'user', content: req.user },
           ],
           ...responseFormat,
-          ...this.temperature,
+          ...(this.local && req.thinking !== 'on' ? { temperature: 0 } : {}),
+          // Ollama and recent OpenAI models accept "none"; servers that don't are handled below.
+          ...(sendEffort ? { reasoning_effort: 'none' as never } : {}),
         },
         { signal: req.signal },
       );
@@ -79,14 +85,40 @@ export class OpenAICompatibleProvider implements Provider {
       return {
         text: choice?.message.content ?? '',
         truncated: choice?.finish_reason === 'length',
+        reasoned: reasoned(choice?.message, res.usage),
         usage: res.usage
           ? { inputTokens: res.usage.prompt_tokens, outputTokens: res.usage.completion_tokens }
           : null,
       };
     } catch (err) {
+      // A server that doesn't know the field: drop it for good and ask again without it.
+      if (sendEffort && rejectsReasoningEffort(err)) {
+        this.noReasoningEffort = true;
+        return this.complete(req);
+      }
       throw toProviderError(err);
     }
   }
+}
+
+/**
+ * Servers return the thinking as `message.reasoning` (Ollama, OpenRouter) or
+ * `message.reasoning_content` (DeepSeek, vLLM, LM Studio, llama.cpp); OpenAI returns only a count.
+ */
+function reasoned(message: unknown, usage: unknown): boolean {
+  const m = (message ?? {}) as { reasoning?: unknown; reasoning_content?: unknown };
+  const text = m.reasoning ?? m.reasoning_content;
+  if (typeof text === 'string' && text.trim() !== '') return true;
+  const u = (usage ?? {}) as { completion_tokens_details?: { reasoning_tokens?: number } };
+  return (u.completion_tokens_details?.reasoning_tokens ?? 0) > 0;
+}
+
+function rejectsReasoningEffort(err: unknown): boolean {
+  return (
+    err instanceof OpenAI.APIError &&
+    (err.status === 400 || err.status === 422) &&
+    /reasoning/i.test(err.message)
+  );
 }
 
 function toProviderError(err: unknown): ProviderError {

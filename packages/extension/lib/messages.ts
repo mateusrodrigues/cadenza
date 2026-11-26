@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConfig } from '@cadenza/providers';
+import type { ModelInfo, ProviderConfig, ThinkingMode } from '@cadenza/providers';
 import type { Paragraph, Suggestion } from '@cadenza/shared';
 import type { IgnoreRule } from './ignored';
 import type { FieldKind } from './settings';
@@ -132,6 +132,7 @@ export interface TestMessage {
   type: 'cadenza/test';
   config: ProviderConfig;
   explanations: boolean;
+  thinking?: ThinkingMode;
 }
 
 export type TestResponse =
@@ -140,6 +141,10 @@ export type TestResponse =
       ms: number;
       tier: string;
       found: { original: string; replacement: string }[];
+      /** The model thought before it answered. */
+      reasoned: boolean;
+      /** Thinking ran out of tokens; the answer came from a retry with thinking off. */
+      thinkingFellBack: boolean;
     }
   | { ok: false; error: WorkerError };
 

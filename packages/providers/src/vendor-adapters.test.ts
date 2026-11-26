@@ -65,6 +65,7 @@ describe('AnthropicProvider', () => {
     expect(res).toEqual({
       text: '{"suggestions":[]}',
       truncated: false,
+      reasoned: false,
       usage: { inputTokens: 12, outputTokens: 3 },
     });
     expect(seen[0]?.url).toBe('https://api.anthropic.example/v1/messages');
@@ -191,6 +192,7 @@ describe('GeminiProvider', () => {
     expect(res).toEqual({
       text: '{"suggestions":[]}',
       truncated: false,
+      reasoned: false,
       usage: { inputTokens: 20, outputTokens: 4 },
     });
     expect(seen[0]?.url).toMatch(/^https:\/\/gemini\.example\/.*models\/m:generateContent/);
