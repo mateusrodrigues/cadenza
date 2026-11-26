@@ -28,6 +28,7 @@ test('onboarding: connect a model server on this computer and try it', async ({
   await page.locator('#custom-form').getByRole('button', { name: 'Connect' }).click();
   await expect(page.locator('#message')).toHaveText('Found 1 model.');
   await expect(page.getByLabel('Model')).toHaveValue('stub-model');
+  await expect(page.locator('#model-warning')).toBeVisible();
 
   // The stub refuses extension origins, like Ollama by default: the page offers the fix.
   await page.getByRole('button', { name: 'Test and finish' }).click();

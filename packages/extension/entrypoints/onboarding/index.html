@@ -84,6 +84,14 @@
       <section id="step-model" class="editor" hidden>
         <h2 id="model-heading">Choose a model</h2>
         <label>Model <select id="model"></select></label>
+        <p id="model-warning" class="warn" hidden>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 2 14.5 13.5h-13ZM8 6.5v3M8 11.5v.5" fill="none" stroke="currentColor"
+              stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>This model is small. It will flag correct text often. A larger model gives better
+            suggestions.</span>
+        </p>
         <div class="actions">
           <button id="finish" type="button" class="primary">Test and finish</button>
           <button type="button" class="back">Back</button>

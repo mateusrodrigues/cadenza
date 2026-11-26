@@ -35,8 +35,10 @@ test('settings: add a local server that refuses extensions, allow it, and use it
 
   // Chrome sends no Origin on these GETs (the e2e build holds the host permission), so models
   // load; the POST that checks text carries the extension's Origin and is refused.
+  await expect(options.locator('#model-warning')).toBeHidden();
   await options.getByRole('button', { name: 'Load models' }).click();
   await expect(options.locator('#message')).toHaveText('Found 1 model.');
+  await expect(options.locator('#model-warning')).toBeVisible();
   await options.getByRole('button', { name: 'Test connection' }).click();
   await expect(options.locator('#message')).toContainText('refused the connection');
   expect(stub.origins.at(-1)).toMatch(/^POST .* chrome-extension:\/\//);
@@ -57,6 +59,10 @@ test('settings: add a local server that refuses extensions, allow it, and use it
   const stored = await worker.evaluate(() => chrome.storage.local.get(null));
   expect(JSON.stringify(stored)).not.toContain('stub-test-key');
   expect(JSON.stringify(stored)).toContain('Stub server');
+  // Reopened, settings list the local server's models again to learn the saved model's size.
+  await options.reload();
+  await expect(options.getByLabel('Name')).toHaveValue('Stub server');
+  await expect(options.locator('#model-warning')).toBeVisible();
 
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);

@@ -12,6 +12,7 @@ import type {
   TestResponse,
   WorkerError,
 } from '../../lib/messages';
+import { showSmallModelWarning } from '../../lib/model-size';
 import { FieldSession } from '../../lib/session';
 import { loadSettings, newProvider, type SavedProvider, saveSettings } from '../../lib/settings';
 
@@ -26,6 +27,8 @@ const LOCAL = PRESETS.filter((p) => p.local && p.kind !== 'mock');
 let provider: SavedProvider | null = null;
 let back: Step = 'step-choose';
 let fixAction: (() => Promise<void>) | null = null;
+/** The models the provider listed. */
+let models: ModelInfo[] = [];
 
 function show(step: Step) {
   for (const s of steps) $(s).hidden = s !== step;
@@ -182,13 +185,19 @@ async function loadModels() {
   showModels(res.models);
 }
 
-function showModels(models: ModelInfo[]) {
+function showModels(list: ModelInfo[]) {
+  models = list;
   $('model').replaceChildren(
     ...models.map((m) => new Option(m.label === m.id ? m.id : `${m.label} (${m.id})`, m.id)),
   );
+  syncModelWarning();
   $('model-heading').textContent = `Choose a model from ${provider?.name ?? 'the provider'}`;
   show('step-model');
   say(`Found ${models.length} model${models.length === 1 ? '' : 's'}.`, 'ok');
+}
+
+function syncModelWarning() {
+  showSmallModelWarning($('model-warning'), models, $<HTMLSelectElement>('model').value);
 }
 
 async function finish() {
@@ -237,6 +246,7 @@ function init() {
       show(from === 'step-model' ? back : 'step-choose');
     });
   }
+  $('model').addEventListener('change', syncModelWarning);
   $('finish').addEventListener('click', () => void finish());
   $('fix').addEventListener('click', () => void fixAction?.());
   $('open-settings').addEventListener('click', () => void browser.runtime.openOptionsPage());
