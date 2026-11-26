@@ -121,6 +121,13 @@ describe('classifyHttpError', () => {
     expect(classifyHttpError(400, 'maximum context length exceeded')).toBe('context_too_long');
     expect(classifyHttpError(503, '')).toBe('unavailable');
   });
+
+  it('reads a 501 about structured output as a tier to skip', () => {
+    expect(classifyHttpError(501, '501 structured output is unavailable')).toBe(
+      'unsupported_output',
+    );
+    expect(classifyHttpError(501, 'Not Implemented')).toBe('unavailable');
+  });
 });
 
 describe('presets', () => {
