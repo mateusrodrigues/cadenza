@@ -27,10 +27,17 @@ Latency was measured with 4 requests at a time; a single check is likely a littl
 | `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
 | `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
 | `microsoft/phi-4-reasoning-plus` (LM Studio, CPU, Q4_K_M) | v3 ³   | 71 (every third)       | 79%                   | 62%               | 5.1 (3 in 293 words)              | 97% / 74%                 | 19 / 26 s    |
+| `meta-llama-3.1-8b-instruct` (LM Studio, CPU, Q4_K_M)     | v3 ⁴   | 71 (every third)       | 43%                   | 33%               | 68.3 (40 in 293 words)            | 80% / 60%                 | 15 / 16 s    |
+| `llama3.2:3b` (Ollama 0.40.18, Apple silicon)             | v3 ⁵   | 71 (every third)       | 35%                   | 38%               | 85.3 (50 in 293 words)            | 97% / 77%                 | –            |
 
 ¹ 4 requests at a time on one CPU; the server's throughput was ~17–30 s per sample.
 ² Run with prompt v4 and no goals set, which is the v3 text exactly; one request at a time.
 ³ Run 2026-11-26 with prompt v5 and no goals set (the v3 text); one request at a time.
+⁴ Run 2026-11-26 with prompt v5 and no goals set (the v3 text); one request at a time,
+`json_schema` output. Scored with the deletion guard (below); without it: 40% / 31%, 70.0,
+83% / 57%.
+⁵ Prompt v5, no goals (the v3 text); from issue #1, before the deletion guard. The engine also
+dropped 108 of its suggestions that didn't anchor or changed nothing.
 
 `phi4-14b` is accurate on mistakes but noisier on clean text: it reworded a correct "principle",
 rewrote parts of a prompt-injection sample (without following the injected instruction), and
@@ -51,6 +58,46 @@ following the injected instruction. Below the exit target and worse than `phi4-1
 the same slice; not recommended. With the deletion guard (below) the same answers score 87%
 correctness precision, 74% overall; still the weakest local model measured.
 
+## Small local models
+
+Neither small model measured is usable. `llama3.2:3b` makes 85 false positives per 500 words
+of clean text and `meta-llama-3.1-8b-instruct` 68, against a target of 1; fewer than 4 in 10
+of either's suggestions are right. The deletion guard barely helps the 8B (70.0 → 68.3 per 500
+words, 31% → 33% precision): most of its noise is rewording, not deleting. The 8B returned exactly two edits for 70 of the 71 samples,
+clean or not: words deleted ("quarterly" → ""), plain words swapped for fancier ones
+("review" → "examination"), and the injected instruction in a prompt-injection sample "fixed"
+by deleting it. It also finds and fixes fewer real mistakes than the 3B (80% / 60% vs 97% /
+77%).
+
+Many of the 3B's edits make correct text wrong: "This" → "This is" (giving "This is is another
+email"), "How" → "How are you doing?" on a sentence that already said it. Ruled out as causes
+on the 3B: prompt truncation (~500 tokens in a 32,768 context), sampling (local endpoints get
+temperature 0) and the output tier (`json_object` gives the same cards, `prompted` more wrong
+ones).
+
+Scratch experiments on the 3B, not shipped:
+
+| Prompt                                                                                                                           | Clean FP / 500 words | Precision | Correctness found / fixed |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------- | ------------------------- |
+| v5, unchanged                                                                                                                    | 85.3                 | 38%       | 97% / 77%                 |
+| v5 plus three examples (two clean paragraphs → `[]`, one with two mistakes) and "Most paragraphs people write have no mistakes." | 22.2                 | 60%       | 86% / 66%                 |
+| The same, with correctness the only category on                                                                                  | 32.4                 | –         | –                         |
+
+With fewer categories, the model labels the same invented edits as correctness, so turning
+categories off is no workaround. A filter for edits that repeat an adjacent word ("is is")
+caught 13 of 99 wrong suggestions and dropped 3 of 61 right ones. None comes near the target,
+so instead of tuning for small models Cadenza warns when one is chosen: onboarding and the
+Provider settings say "This model is small" when a local server reports fewer than **9B**
+parameters (`SMALL_MODEL_PARAMS` in `packages/extension/lib/model-size.ts`). Sizes come from
+the server at runtime: Ollama's `/api/tags` (`details.parameter_size`), LM Studio's
+`/api/v1/models` (`params_string`) and llama.cpp's `/v1/models` (`meta.n_params`). vLLM and
+hosted providers report no size, so they never get the warning.
+
+The limit sits just above the measured 8B (unusable), so every "8B" model (Ollama reports
+8.0–8.2B for the common ones) gets the warning, and below the measured 14B (usable in slow
+model mode). 9–13B models haven't been measured; measure one before moving the limit up to
+cover them.
+
 ## Recommended models
 
 | Use                   | Model                          | Why                                                                                    |
@@ -59,7 +106,8 @@ correctness precision, 74% overall; still the weakest local model measured.
 | Local, CPU only       | `phi4-14b`, slow model mode    | Accurate on mistakes; expect ~5 false positives per 500 words and ~1 min per paragraph |
 
 Only measured models are listed. OpenAI, Gemini, OpenRouter, Mistral, Groq and the other
-presets haven't been run (no keys here), and no small (≤ 8B) local model has been tried yet.
+presets haven't been run (no keys here). The small local models tried, 3B and 8B, aren't
+usable (see above); 9–13B is unmeasured.
 To add one: `CADENZA_EVAL_API_KEY=… npm run eval -- --preset <preset> --model <id>`.
 
 ## Prompt history (`claude-haiku-5-5`, all 205 samples)
@@ -129,9 +177,12 @@ Not measured yet: the other goal values (casual, neutral, experts).
   | `phi4-14b`, v3                        | 91% → 94%             | 76% → 77%         | 15 → 14        | 97% → 94%         |
   | `phi4-14b`, v4 / v5 formal            | unchanged             | unchanged         | unchanged      | unchanged         |
   | `microsoft/phi-4-reasoning-plus`, v3  | 79% → 87%             | 62% → 74%         | 24 → 14        | 97% → 86%         |
+  | `meta-llama-3.1-8b-instruct`, v3      | 40% → 43%             | 31% → 33%         | 88 → 82        | 83% → 80%         |
 
   No correct suggestion was dropped in any run. "Found" falls only because a wrong deletion
-  used to count as finding the issue it destroyed; "fixed" is unchanged everywhere.
+  used to count as finding the issue it destroyed. "Fixed" is unchanged everywhere except
+  the 8B, where it rises (57% → 60%): on "Do you want to come with us." it sent both "us." → ""
+  and the right whole-sentence fix, and the overlapping deletion used to win.
 
 ## Known gaps
 

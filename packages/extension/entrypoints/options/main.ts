@@ -16,6 +16,7 @@ import type {
   TestResponse,
   WorkerError,
 } from '../../lib/messages';
+import { showSmallModelWarning } from '../../lib/model-size';
 import {
   FIELD_KINDS,
   loadSettings,
@@ -46,6 +47,7 @@ const el = {
   showKey: $<HTMLButtonElement>('show-key'),
   model: $<HTMLSelectElement>('model'),
   loadModels: $<HTMLButtonElement>('load-models'),
+  modelWarning: $<HTMLParagraphElement>('model-warning'),
   explanations: $<HTMLInputElement>('explanations'),
   slowMode: $<HTMLInputElement>('slow-mode'),
   test: $<HTMLButtonElement>('test'),
@@ -118,6 +120,8 @@ let settings: Settings;
 let editing: SavedProvider | null = null;
 let isNew = false;
 let fixAction: (() => Promise<void>) | null = null;
+/** The models in the picker; a saved model starts as its id alone, with no size. */
+let listed: ModelInfo[] = [];
 
 /**
  * Change settings starting from what is stored now, so a change made elsewhere (the popup, a
@@ -200,6 +204,7 @@ function openEditor(provider: SavedProvider, fresh: boolean) {
   el.preset.value = provider.presetId;
   fillEditor();
   setModels(editing.model ? [{ id: editing.model, label: editing.model }] : [], editing.model);
+  void refreshLocalModels();
   say('');
   el.editor.hidden = false;
   syncButtons();
@@ -297,6 +302,26 @@ function setModels(models: ModelInfo[], selected: string | null) {
         ),
     ),
   );
+  listed = list;
+  syncModelWarning();
+}
+
+function syncModelWarning() {
+  showSmallModelWarning(el.modelWarning, listed, el.model.value);
+}
+
+/**
+ * A model server on this computer lists its models quickly and at no cost, so list them when
+ * the form opens to learn the saved model's size. Quiet: a server that isn't running now is
+ * reported only when the user asks (Load models, Test connection).
+ */
+async function refreshLocalModels() {
+  const p = editing;
+  if (!p || p.kind === 'mock' || !p.model || !isLocalURL(p.baseURL)) return;
+  const res = await send<ListModelsResponse>({ type: 'cadenza/list-models', config: configOf(p) });
+  // Skip if another provider was opened, or the list was loaded or changed meanwhile.
+  if (!res.ok || editing !== p || listed.length !== 1 || el.model.value !== p.model) return;
+  setModels(res.models, p.model);
 }
 
 async function loadModels() {
@@ -605,6 +630,7 @@ function wireProviderForm() {
   });
   el.showKey.addEventListener('click', () => showKey(el.apiKey.type === 'password'));
   el.loadModels.addEventListener('click', () => void loadModels());
+  el.model.addEventListener('change', syncModelWarning);
   el.test.addEventListener('click', () => void test());
   el.use.addEventListener('click', () => void useProvider());
   el.remove.addEventListener('click', () => void deleteProvider());

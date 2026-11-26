@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { classifyHttpError, ProviderError } from './errors.js';
+import { addParameterCounts, type SizeSource } from './model-size.js';
 import { isLocalURL } from './presets.js';
 import type {
   CompletionRequest,
@@ -21,8 +22,12 @@ export class OpenAICompatibleProvider implements Provider {
    * between runs. Hosted reasoning models reject a temperature, so only local ones get 0.
    */
   private readonly temperature: { temperature: number } | Record<string, never>;
+  private readonly config: ProviderConfig;
+  private readonly fetch: typeof fetch;
 
   constructor(config: ProviderConfig, fetchImpl?: typeof fetch) {
+    this.config = config;
+    this.fetch = fetchImpl ?? ((input, init) => fetch(input, init));
     this.temperature = isLocalURL(config.baseURL) ? { temperature: 0 } : {};
     this.client = new OpenAI({
       // Local servers usually need no key, but the SDK requires a non-empty string.
@@ -41,12 +46,34 @@ export class OpenAICompatibleProvider implements Provider {
     try {
       const models: ModelInfo[] = [];
       for await (const m of this.client.models.list({ signal })) {
-        models.push({ id: m.id, label: m.id });
+        // llama.cpp's server adds the size to each entry: `meta: { n_params: 3212749888 }`.
+        const meta = (m as { meta?: { n_params?: unknown } }).meta;
+        const n = meta?.n_params;
+        models.push({
+          id: m.id,
+          label: m.id,
+          ...(typeof n === 'number' && n > 0 ? { parameterCount: n } : {}),
+        });
       }
+      await this.addSizes(models, signal);
       return models.sort((a, b) => a.id.localeCompare(b.id));
     } catch (err) {
       throw toProviderError(err);
     }
+  }
+
+  /** Ollama and LM Studio report model sizes only in their native API, beside /v1. */
+  private async addSizes(models: ModelInfo[], signal?: AbortSignal): Promise<void> {
+    const { presetId, baseURL, apiKey, extraHeaders } = this.config;
+    const sources: SizeSource[] =
+      presetId === 'ollama' || presetId === 'lmstudio'
+        ? [presetId]
+        : presetId === 'custom' && isLocalURL(baseURL)
+          ? ['ollama', 'lmstudio']
+          : [];
+    const root = baseURL.replace(/\/+$/, '').replace(/\/v1$/, '');
+    const headers = { ...extraHeaders, ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) };
+    await addParameterCounts(models, sources, root, this.fetch, headers, signal);
   }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {

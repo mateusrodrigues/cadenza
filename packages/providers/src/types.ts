@@ -23,6 +23,8 @@ export interface ModelInfo {
   id: string;
   label: string;
   contextWindow?: number;
+  /** Number of parameters, when the server reports it (local servers only). */
+  parameterCount?: number;
 }
 
 export interface CompletionRequest {
