@@ -14,7 +14,7 @@ import type {
 } from '../../lib/messages';
 import { showSmallModelWarning } from '../../lib/model-size';
 import { FieldSession } from '../../lib/session';
-import { loadSettings, newProvider, type SavedProvider, saveSettings } from '../../lib/settings';
+import { newProvider, type SavedProvider, updateSettings } from '../../lib/settings';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const steps = ['step-choose', 'step-hosted', 'step-local', 'step-model', 'step-done'] as const;
@@ -29,6 +29,8 @@ let back: Step = 'step-choose';
 let fixAction: (() => Promise<void>) | null = null;
 /** The models the provider listed. */
 let models: ModelInfo[] = [];
+/** A `finish()` is running; a second click must not save the provider again. */
+let finishing = false;
 
 function show(step: Step) {
   for (const s of steps) $(s).hidden = s !== step;
@@ -202,26 +204,37 @@ function syncModelWarning() {
 
 async function finish() {
   const p = provider;
-  if (!p) return;
+  if (!p || finishing) return;
   p.model = $<HTMLSelectElement>('model').value || null;
   if (!p.model) return say('Choose a model.', 'error');
-  say(
-    p.slowMode
-      ? 'Checking a sample sentence… on a computer without a fast graphics card this can take a minute.'
-      : 'Checking a sample sentence…',
-  );
-  const res = await send<TestResponse>({
-    type: 'cadenza/test',
-    config: configOf(p),
-    explanations: p.explanations,
-  });
-  if (!res.ok) return showError(res.error, finish);
+  finishing = true;
+  const button = $<HTMLButtonElement>('finish');
+  button.disabled = true;
+  try {
+    say(
+      p.slowMode
+        ? 'Checking a sample sentence… on a computer without a fast graphics card this can take a minute.'
+        : 'Checking a sample sentence…',
+    );
+    const res = await send<TestResponse>({
+      type: 'cadenza/test',
+      config: configOf(p),
+      explanations: p.explanations,
+    });
+    if (!res.ok) return showError(res.error, finish);
 
-  const settings = await loadSettings();
-  settings.providers.push(p);
-  settings.activeProviderId = p.id;
-  settings.enabled = true;
-  await saveSettings(settings);
+    // Replace an entry with the same id (a retry after an error), or add it.
+    await updateSettings((s) => {
+      const i = s.providers.findIndex((x) => x.id === p.id);
+      if (i === -1) s.providers.push(p);
+      else s.providers[i] = p;
+      s.activeProviderId = p.id;
+      s.enabled = true;
+    });
+  } finally {
+    finishing = false;
+    button.disabled = false;
+  }
   show('step-done');
   new FieldSession($<HTMLTextAreaElement>('try'));
   $('try').focus();
@@ -248,7 +261,17 @@ function init() {
   }
   $('model').addEventListener('change', syncModelWarning);
   $('finish').addEventListener('click', () => void finish());
-  $('fix').addEventListener('click', () => void fixAction?.());
+  $('fix').addEventListener('click', async () => {
+    const button = $<HTMLButtonElement>('fix');
+    const action = fixAction;
+    if (!action || button.disabled) return;
+    button.disabled = true;
+    try {
+      await action();
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('open-settings').addEventListener('click', () => void browser.runtime.openOptionsPage());
 }
 

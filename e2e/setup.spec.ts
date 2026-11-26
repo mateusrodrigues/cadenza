@@ -50,6 +50,46 @@ test('onboarding: connect a model server on this computer and try it', async ({
   });
 });
 
+test('onboarding: clicking "Test and finish" twice saves the provider once', async ({
+  context,
+  extensionId,
+  worker,
+}) => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/onboarding.html`);
+  // Allow the stub up front, so the first check passes (see the test above).
+  await page.evaluate(
+    (origin) => chrome.runtime.sendMessage({ type: 'cadenza/allow-origin', origin }),
+    STUB,
+  );
+  await page.getByRole('button', { name: /Use a model on this computer/ }).click();
+  await page.getByLabel('Server address').fill(`${STUB}/v1`);
+  await page.locator('#custom-form').getByRole('button', { name: 'Connect' }).click();
+  await expect(page.getByLabel('Model')).toHaveValue('stub-model');
+
+  // The stub answers "slow-model" after 4 s, like a local model on a CPU.
+  await page.getByLabel('Model').evaluate((select: HTMLSelectElement) => {
+    select.add(new Option('slow-model', 'slow-model'));
+    select.value = 'slow-model';
+  });
+
+  // A second click while the sample check runs does nothing.
+  const finish = page.getByRole('button', { name: 'Test and finish' });
+  await finish.click();
+  await expect(page.locator('#message')).toContainText('Checking a sample sentence');
+  await expect(finish).toBeDisabled();
+  await finish.evaluate((button: HTMLButtonElement) => button.click());
+  await expect(page.getByRole('heading', { name: "You're set" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.waitForTimeout(1000);
+
+  const settings = await storedSettings(worker);
+  const stubs = settings.providers.filter((p) => p.baseURL === `${STUB}/v1`);
+  expect(stubs).toHaveLength(1);
+  expect(settings.activeProviderId).toBe(stubs[0]?.id);
+});
+
 test('a site turned off in settings shows nothing until turned back on', async ({
   context,
   extensionId,
