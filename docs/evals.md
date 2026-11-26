@@ -21,18 +21,18 @@ Latency was measured with 4 requests at a time; a single check is likely a littl
 
 ## Local model
 
-| Model (server)                                            | Prompt | Samples                | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | p50 / p95    |
-| --------------------------------------------------------- | ------ | ---------------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------------ |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking off ⁶ | v5 ⁷ | 205 | 99% | 96% | 2.4 (4 in 851 words) | 98% / 97% | 0.8 / 2.0 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on | v5 ⁷ | 205, 66 failed | 100% ⁸ | 100% ⁸ | 0 (in 694 words) ⁸ | 100% / 100% ⁸ | 4.8 / 13.8 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192 ⁹ | v5 ⁷ | 205, 35 failed | 100% ⁸ | 100% ⁸ | 0 (in 769 words) ⁸ | 100% / 100% ⁸ | 5.8 / 41.3 s |
-| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192, temperature 1.0 ¹⁰ | v5 ⁷ | 205, 1 failed | 98% | 97% | 0.6 (1 in 851 words) | 100% / 98% | 6.4 / 68.4 s |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v3 ²   | 71 (every third)       | 91%                   | 76%               | 10.2 (6 in 293 words)             | 97% / 86%                 | 13 / 26 s    |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
-| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                       | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
-| `microsoft/phi-4-reasoning-plus` (LM Studio, CPU, Q4_K_M) | v3 ³   | 71 (every third)       | 79%                   | 62%               | 5.1 (3 in 293 words)              | 97% / 74%                 | 19 / 26 s    |
-| `meta-llama-3.1-8b-instruct` (LM Studio, CPU, Q4_K_M)     | v3 ⁴   | 71 (every third)       | 43%                   | 33%               | 68.3 (40 in 293 words)            | 80% / 60%                 | 15 / 16 s    |
-| `llama3.2:3b` (Ollama 0.40.18, Apple silicon)             | v3 ⁵   | 71 (every third)       | 35%                   | 38%               | 85.3 (50 in 293 words)            | 97% / 77%                 | –            |
+| Model (server)                                                                             | Prompt | Samples                | Correctness precision | Overall precision | Clean false positives / 500 words | Correctness found / fixed | p50 / p95    |
+| ------------------------------------------------------------------------------------------ | ------ | ---------------------- | --------------------- | ----------------- | --------------------------------- | ------------------------- | ------------ |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking off ⁶                                      | v5 ⁷   | 205                    | 99%                   | 96%               | 2.4 (4 in 851 words)              | 98% / 97%                 | 0.8 / 2.0 s  |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on                                         | v5 ⁷   | 205, 66 failed         | 100% ⁸                | 100% ⁸            | 0 (in 694 words) ⁸                | 100% / 100% ⁸             | 4.8 / 13.8 s |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192 ⁹                   | v5 ⁷   | 205, 35 failed         | 100% ⁸                | 100% ⁸            | 0 (in 769 words) ⁸                | 100% / 100% ⁸             | 5.8 / 41.3 s |
+| `gemma4:26b-mlx` (Ollama, MLX, nvfp4), thinking on, `max_tokens` 8,192, temperature 1.0 ¹⁰ | v5 ⁷   | 205, 1 failed          | 98%                   | 97%               | 0.6 (1 in 851 words)              | 100% / 98%                | 6.4 / 68.4 s |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                                                        | v3 ²   | 71 (every third)       | 91%                   | 76%               | 10.2 (6 in 293 words)             | 97% / 86%                 | 13 / 26 s    |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                                                        | v2     | 71 (every third)       | 94%                   | 87%               | 5.1 (3 in 293 words)              | 97% / 94%                 | 44 / 95 s ¹  |
+| `phi4-14b` (llama.cpp, CPU, Q4_K_M)                                                        | v1     | 37 (spelling, partial) | 97%                   | 97%               | –                                 | 100% / 97%                | 58 / 137 s ¹ |
+| `microsoft/phi-4-reasoning-plus` (LM Studio, CPU, Q4_K_M)                                  | v3 ³   | 71 (every third)       | 79%                   | 62%               | 5.1 (3 in 293 words)              | 97% / 74%                 | 19 / 26 s    |
+| `meta-llama-3.1-8b-instruct` (LM Studio, CPU, Q4_K_M)                                      | v3 ⁴   | 71 (every third)       | 43%                   | 33%               | 68.3 (40 in 293 words)            | 80% / 60%                 | 15 / 16 s    |
+| `llama3.2:3b` (Ollama 0.40.18, Apple silicon)                                              | v3 ⁵   | 71 (every third)       | 35%                   | 38%               | 85.3 (50 in 293 words)            | 97% / 77%                 | –            |
 
 ¹ 4 requests at a time on one CPU; the server's throughput was ~17–30 s per sample.
 ² Run with prompt v4 and no goals set, which is the v3 text exactly; one request at a time.
