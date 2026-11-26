@@ -40,12 +40,46 @@ export function anchorSuggestions(
     }
 
     for (const edit of refine(s.original, s.replacement, s.category)) {
+      if (isUnsafeDeletion(p.text, local + edit.start, local + edit.end, edit, s.category)) {
+        if (stats) stats.dropped++;
+        continue;
+      }
       const start = p.start + local + edit.start;
       const end = p.start + local + edit.end;
       out.push(makeSuggestion(s, p.pid, start, end, edit.original, edit.replacement));
     }
   }
   return resolveOverlaps(out);
+}
+
+/** Sentence-ending punctuation, optionally followed by closing quotes or brackets. */
+const SENTENCE_END = /[.!?…]["'”’)\]]*$/u;
+
+/**
+ * Some models answer `""` (delete) when they have no fix, which would silently remove the
+ * user's words on accept. A deletion is dropped when it:
+ * - leaves the paragraph with no words at all;
+ * - removes a sentence's ending punctuation without the rest of the sentence ("Wednesday
+ *   afternoon." → "Wednesday");
+ * - is a correctness fix of more than one word ("the the" → "", "discussed about" → ""): a
+ *   correctness deletion removes one wrong word or mark, never a phrase.
+ * `start`/`end` are offsets in `text`, the paragraph.
+ */
+function isUnsafeDeletion(
+  text: string,
+  start: number,
+  end: number,
+  edit: Pick<Edit, 'original' | 'replacement'>,
+  category: Category,
+): boolean {
+  if (edit.replacement.trim() !== '') return false;
+  const span = edit.original.trim();
+  if (!/[\p{L}\p{N}]/u.test(text.slice(0, start) + text.slice(end))) return true;
+  if (SENTENCE_END.test(span)) {
+    const before = text.slice(0, start).trimEnd();
+    if (before !== '' && !SENTENCE_END.test(before)) return true;
+  }
+  return category === 'correctness' && /\s/.test(span);
 }
 
 function findOccurrence(text: string, needle: string, occurrence: number): number {
