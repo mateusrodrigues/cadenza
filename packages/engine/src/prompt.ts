@@ -108,6 +108,12 @@ Write the JSON compactly on one line, without indentation.${
 }
 
 /**
+ * Extra output tokens for a model that thinks before it answers; providers count the thinking
+ * against the same limit. Measured on a 26B local model: p95 4,848 tokens, most 7,432.
+ */
+export const THINKING_TOKENS = 8192;
+
+/**
  * Output budget. A short paragraph can still need many suggestions (each ~45 tokens, ~70 with
  * an explanation), so the floor is generous; it is only a cap, not a cost.
  */

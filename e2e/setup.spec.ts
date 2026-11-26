@@ -171,6 +171,8 @@ test('goals and the daily limit are saved; usage lists checks', async ({
 
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html#writing`);
+  // The pills are built after settings load, which can finish after the page's load event.
+  await options.locator('input[name="formality"][value="formal"]').waitFor({ state: 'attached' });
   // Both at once, as two quick clicks would be: neither change may undo the other.
   await options.evaluate(() => {
     const formal = document.querySelector<HTMLInputElement>(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, migrate } from './settings';
+import { DEFAULT_SETTINGS, MOCK_PROVIDER, migrate, thinkingFor } from './settings';
 
 describe('settings defaults', () => {
   it('starts with no provider outside test builds (onboarding sets one up)', () => {
@@ -39,5 +39,20 @@ describe('settings defaults', () => {
       ['other', 'other-model'],
     ]);
     expect(s.activeProviderId).toBe('dup');
+  });
+});
+
+describe('thinkingFor', () => {
+  const p = { ...MOCK_PROVIDER, model: 'm' };
+
+  it('asks nothing until the model has been seen thinking', () => {
+    expect(thinkingFor(p)).toBeUndefined();
+    expect(thinkingFor({ ...p, thinking: true })).toBeUndefined();
+    expect(thinkingFor({ ...p, thinkingModel: 'other' })).toBeUndefined();
+  });
+
+  it("then follows the user's choice, off by default", () => {
+    expect(thinkingFor({ ...p, thinkingModel: 'm' })).toBe('off');
+    expect(thinkingFor({ ...p, thinkingModel: 'm', thinking: true })).toBe('on');
   });
 });

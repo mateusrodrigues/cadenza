@@ -63,8 +63,80 @@ describe('OpenAICompatibleProvider', () => {
     expect(res).toEqual({
       text: '{"suggestions":[]}',
       truncated: false,
+      reasoned: false,
       usage: { inputTokens: 10, outputTokens: 5 },
     });
+  });
+
+  it('keeps local sampling while thinking and asks not to think when thinking is off', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const provider = new OpenAICompatibleProvider(config, (async (
+      _: unknown,
+      init?: RequestInit,
+    ) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: '' } }] }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch);
+    await provider.complete({ ...request, tier: 'prompted' });
+    await provider.complete({ ...request, tier: 'prompted', thinking: 'on' });
+    await provider.complete({ ...request, tier: 'prompted', thinking: 'off' });
+    expect(bodies[0]).toMatchObject({ temperature: 0 });
+    expect(bodies[0]).not.toHaveProperty('reasoning_effort');
+    expect(bodies[1]).not.toHaveProperty('temperature');
+    expect(bodies[1]).not.toHaveProperty('reasoning_effort');
+    expect(bodies[2]).toMatchObject({ temperature: 0, reasoning_effort: 'none' });
+  });
+
+  it('stops sending reasoning_effort to a server that rejects it', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const provider = new OpenAICompatibleProvider(config, (async (
+      _: unknown,
+      init?: RequestInit,
+    ) => {
+      const body = JSON.parse(String(init?.body));
+      bodies.push(body);
+      const reject = 'reasoning_effort' in body;
+      return new Response(
+        JSON.stringify(
+          reject
+            ? { error: { message: 'Unrecognized request argument supplied: reasoning_effort' } }
+            : { choices: [{ message: { content: 'ok' } }] },
+        ),
+        { status: reject ? 400 : 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as typeof fetch);
+    const res = await provider.complete({ ...request, tier: 'prompted', thinking: 'off' });
+    expect(res.text).toBe('ok');
+    await provider.complete({ ...request, tier: 'prompted', thinking: 'off' });
+    expect(bodies.map((b) => 'reasoning_effort' in b)).toEqual([true, false, false]);
+  });
+
+  it('notices when the model thought before it answered', async () => {
+    const reply = (extra: Record<string, unknown>, usage?: unknown) =>
+      new OpenAICompatibleProvider(
+        config,
+        stubFetch(200, {
+          choices: [{ message: { content: '{}', ...extra } }],
+          ...(usage ? { usage } : {}),
+        }),
+      ).complete({ ...request, tier: 'prompted' });
+    expect((await reply({ reasoning: 'Let me look.' })).reasoned).toBe(true);
+    expect((await reply({ reasoning_content: 'Hmm.' })).reasoned).toBe(true);
+    expect(
+      (
+        await reply(
+          {},
+          {
+            prompt_tokens: 1,
+            completion_tokens: 9,
+            completion_tokens_details: { reasoning_tokens: 8 },
+          },
+        )
+      ).reasoned,
+    ).toBe(true);
+    expect((await reply({})).reasoned).toBe(false);
   });
 
   it('omits response_format for the prompted tier', async () => {
@@ -120,6 +192,13 @@ describe('classifyHttpError', () => {
     expect(classifyHttpError(429, '')).toBe('rate_limited');
     expect(classifyHttpError(400, 'maximum context length exceeded')).toBe('context_too_long');
     expect(classifyHttpError(503, '')).toBe('unavailable');
+  });
+
+  it('reads a 501 about structured output as a tier to skip', () => {
+    expect(classifyHttpError(501, '501 structured output is unavailable')).toBe(
+      'unsupported_output',
+    );
+    expect(classifyHttpError(501, 'Not Implemented')).toBe('unavailable');
   });
 });
 

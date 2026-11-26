@@ -52,6 +52,8 @@ export function classifyHttpError(status: number | null, message: string): Provi
     if (BAD_KEY_HINT.test(message)) return 'auth';
     return 'unknown';
   }
+  // Ollama's MLX runner answers any response_format with "501 structured output is unavailable".
+  if (status === 501 && OUTPUT_FORMAT_HINT.test(message)) return 'unsupported_output';
   if (status !== null && status >= 500) return 'unavailable';
   return 'unknown';
 }

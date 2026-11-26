@@ -10,6 +10,7 @@ import { anchorSuggestions, refine } from './anchor.js';
 import { checkParagraphs } from './check.js';
 import { splitParagraphs } from './paragraphs.js';
 import { parseModelOutput, parseTruncatedOutput } from './parse.js';
+import { THINKING_TOKENS } from './prompt.js';
 
 describe('splitParagraphs', () => {
   it('splits on newlines with absolute offsets and skips blank lines', () => {
@@ -205,7 +206,12 @@ describe('checkParagraphs', () => {
       complete: async (req: CompletionRequest) => {
         tiers.push(req.tier);
         if (req.tier === 'json_schema') throw new ProviderError('unsupported_output', 'no schema');
-        return { text: '```json\n{"suggestions": []}\n```', usage: null, truncated: false };
+        return {
+          text: '```json\n{"suggestions": []}\n```',
+          usage: null,
+          truncated: false,
+          reasoned: false,
+        };
       },
     };
     const outcome = await checkParagraphs({
@@ -218,11 +224,99 @@ describe('checkParagraphs', () => {
     expect(outcome.tier).toBe('json_object');
   });
 
+  it('leaves room to think unless thinking is off, and passes the choice on', async () => {
+    const seen: [string | undefined, number][] = [];
+    const provider: Provider = {
+      kind: 'openai-compatible',
+      listModels: async () => [],
+      complete: async (req: CompletionRequest) => {
+        seen.push([req.thinking, req.maxTokens]);
+        return { text: '{"suggestions": []}', usage: null, truncated: false, reasoned: false };
+      },
+    };
+    for (const thinking of [undefined, 'on', 'off'] as const) {
+      await checkParagraphs({
+        provider,
+        model: 'm',
+        paragraphs: splitParagraphs('Fine text.'),
+        settings: DEFAULT_CHECK_SETTINGS,
+        ...(thinking ? { thinking } : {}),
+      });
+    }
+    expect(seen).toEqual([
+      [undefined, 1024 + THINKING_TOKENS],
+      ['on', 1024 + THINKING_TOKENS],
+      ['off', 1024],
+    ]);
+  });
+
+  it('asks again without thinking when thinking runs out of tokens', async () => {
+    const calls: (string | undefined)[] = [];
+    const provider: Provider = {
+      kind: 'openai-compatible',
+      listModels: async () => [],
+      complete: async (req: CompletionRequest) => {
+        calls.push(req.thinking);
+        return req.thinking === 'off'
+          ? {
+              text: '{"suggestions": []}',
+              usage: { inputTokens: 100, outputTokens: 20 },
+              truncated: false,
+              reasoned: false,
+            }
+          : {
+              text: '',
+              usage: { inputTokens: 100, outputTokens: 9216 },
+              truncated: true,
+              reasoned: true,
+            };
+      },
+    };
+    const outcome = await checkParagraphs({
+      provider,
+      model: 'm',
+      paragraphs: splitParagraphs('Fine text.'),
+      settings: DEFAULT_CHECK_SETTINGS,
+      thinking: 'on',
+    });
+    expect(calls).toEqual(['on', 'off']);
+    expect(outcome.thinkingFellBack).toBe(true);
+    expect(outcome.reasoned).toBe(true);
+    expect(outcome.usage).toEqual({ inputTokens: 200, outputTokens: 9236 });
+  });
+
+  it('does not retry when thinking is already off', async () => {
+    let calls = 0;
+    const provider: Provider = {
+      kind: 'openai-compatible',
+      listModels: async () => [],
+      complete: async () => {
+        calls++;
+        return { text: '', usage: null, truncated: true, reasoned: true };
+      },
+    };
+    await expect(
+      checkParagraphs({
+        provider,
+        model: 'm',
+        paragraphs: splitParagraphs('Text.'),
+        settings: DEFAULT_CHECK_SETTINGS,
+        thinking: 'off',
+      }),
+    ).rejects.toMatchObject({ kind: 'bad_output' });
+    expect(calls).toBe(1);
+  });
+
   it('reports bad output instead of silently returning nothing', async () => {
     const provider: Provider = {
       kind: 'openai-compatible',
       listModels: async () => [],
-      complete: async () => ({ text: 'Sorry, I cannot.', usage: null, truncated: false }),
+      complete: async () => ({
+        text: 'Sorry, I cannot.',
+        usage: null,
+        truncated: false,
+        reasoned: false,
+      }),
     };
     await expect(
       checkParagraphs({

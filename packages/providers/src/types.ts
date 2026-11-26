@@ -34,8 +34,16 @@ export interface CompletionRequest {
   tier: OutputTier;
   jsonSchema: Record<string, unknown>;
   maxTokens: number;
+  /**
+   * For models that think before they answer: 'on' lets them think (local servers keep their
+   * own sampling, since thinking models loop at temperature 0), 'off' asks them not to.
+   * Absent: send nothing and let the model do what it does by default.
+   */
+  thinking?: ThinkingMode;
   signal?: AbortSignal;
 }
+
+export type ThinkingMode = 'on' | 'off';
 
 export interface Usage {
   inputTokens: number;
@@ -47,6 +55,8 @@ export interface CompletionResult {
   usage: Usage | null;
   /** True if the model stopped because it hit maxTokens (output is likely truncated). */
   truncated: boolean;
+  /** True if the model thought before it answered (it returned reasoning or reasoning tokens). */
+  reasoned: boolean;
 }
 
 export interface Provider {

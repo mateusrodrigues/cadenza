@@ -78,7 +78,12 @@ export class MockProvider implements Provider {
         }
       }
     }
-    return { text: JSON.stringify({ suggestions }), usage: null, truncated: false };
+    return {
+      text: JSON.stringify({ suggestions }),
+      usage: null,
+      truncated: false,
+      reasoned: false,
+    };
   }
 }
 

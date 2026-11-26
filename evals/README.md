@@ -67,5 +67,9 @@ CADENZA_EVAL_API_KEY=… npm run eval -- --preset openai --model <model id from 
 Options: `--every 3` (a balanced third of the corpus, for quick prompt iterations),
 `--filter clean-` (id prefix), `--limit N`, `--concurrency N`, `--explanations`, `--out file`,
 `--resume file` (continue an interrupted run), `--rescore file` (re-score saved results after
-editing labels). Results go to `evals/results/` (not committed); summaries worth keeping go in
-`docs/evals.md`.
+editing labels), `--reasoning-effort none` (OpenAI-compatible presets only: sends
+`reasoning_effort`, for example to turn Ollama thinking off), `--max-tokens N` and
+`--temperature T` (OpenAI-compatible presets only: replace the engine's output limit and the
+provider's temperature). The extension never sends any of these. `--thinking on|off` runs the
+checks the way the extension does with its thinking switch for a model that thinks.
+Results go to `evals/results/` (not committed); summaries worth keeping go in `docs/evals.md`.

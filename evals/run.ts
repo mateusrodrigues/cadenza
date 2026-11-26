@@ -5,6 +5,10 @@
  *   CADENZA_EVAL_API_KEY=… npm run eval -- --preset openai --model <id from the provider>
  *   npm run eval -- --rescore evals/results/<file>.json     (after editing labels)
  *   … --formality formal --audience general                 (writing goals, prompt v4+)
+ *   … --reasoning-effort none            (OpenAI-compatible only, e.g. Ollama thinking off)
+ *   … --max-tokens 8192                  (OpenAI-compatible only, overrides the output limit)
+ *   … --temperature 1                    (OpenAI-compatible only, overrides local temperature 0)
+ *   … --thinking on|off                  (what the extension sends with the thinking switch)
  *
  * The API key is read only from CADENZA_EVAL_API_KEY, never from the command line.
  * Results are saved after every sample; --resume <file> continues an interrupted run.
@@ -18,7 +22,13 @@ import {
   PROMPT_VERSION,
   splitParagraphs,
 } from '@cadenza/engine';
-import { createProvider, getPreset, ProviderError } from '@cadenza/providers';
+import {
+  createProvider,
+  getPreset,
+  OpenAICompatibleProvider,
+  ProviderError,
+  type ThinkingMode,
+} from '@cadenza/providers';
 import { CATEGORY_IDS, type CheckSettings, type Goals } from '@cadenza/shared';
 import { loadCorpus, type Sample } from './corpus.js';
 import { type SampleResult, type Summary, summarize } from './score.js';
@@ -35,6 +45,14 @@ interface RunFile {
     every: number | null;
     /** Writing goals sent with every sample (prompt v4+); absent in older runs. */
     goals?: Goals;
+    /** Sent as reasoning_effort on every request (eval only; the extension never sends it). */
+    reasoningEffort?: string;
+    /** Sent as max_tokens on every request instead of the engine's budget (eval only). */
+    maxTokens?: number;
+    /** Sent as temperature on every request instead of the provider's choice (eval only). */
+    temperature?: number;
+    /** The extension's thinking switch for a model seen thinking (absent: not seen thinking). */
+    thinking?: ThinkingMode;
   };
   results: SampleResult[];
   summary?: Summary;
@@ -59,6 +77,14 @@ const { values: args } = parseArgs({
     /** Writing goals (prompt v4+): any | informal | neutral | formal, any | general | expert. */
     formality: { type: 'string', default: 'any' },
     audience: { type: 'string', default: 'any' },
+    /** OpenAI-compatible only: reasoning_effort to send, e.g. none to turn Ollama thinking off. */
+    'reasoning-effort': { type: 'string' },
+    /** OpenAI-compatible only: max_tokens to send instead of the engine's budget. */
+    'max-tokens': { type: 'string' },
+    /** OpenAI-compatible only: temperature to send instead of the provider's choice. */
+    temperature: { type: 'string' },
+    /** The extension's thinking switch: on or off. Absent: as for a model not seen thinking. */
+    thinking: { type: 'string' },
   },
 });
 
@@ -87,14 +113,28 @@ const run: RunFile = args.resume
 const outPath = args.resume ?? args.out ?? defaultOutPath(run.meta);
 const preset = getPreset(run.meta.preset);
 if (!preset) throw new Error(`Unknown preset ${run.meta.preset}`);
-const provider = createProvider({
+const providerConfig = {
   presetId: preset.id,
   kind: preset.kind,
   baseURL: run.meta.endpoint,
   apiKey: process.env.CADENZA_EVAL_API_KEY ?? null,
   model: run.meta.model,
   ...(preset.extraHeaders ? { extraHeaders: preset.extraHeaders } : {}),
-});
+};
+const bodyPatch: Record<string, unknown> = {
+  ...(run.meta.reasoningEffort ? { reasoning_effort: run.meta.reasoningEffort } : {}),
+  ...(run.meta.maxTokens ? { max_tokens: run.meta.maxTokens } : {}),
+  ...(run.meta.temperature !== undefined ? { temperature: run.meta.temperature } : {}),
+};
+if (Object.keys(bodyPatch).length > 0 && preset.kind !== 'openai-compatible') {
+  throw new Error(
+    '--reasoning-effort, --max-tokens and --temperature work only with OpenAI-compatible presets',
+  );
+}
+const provider =
+  Object.keys(bodyPatch).length > 0
+    ? new OpenAICompatibleProvider(providerConfig, withBodyPatch(bodyPatch))
+    : createProvider(providerConfig);
 
 const done = new Set(run.results.map((r) => r.id));
 let todo = corpus.filter((s) => !done.has(s.id));
@@ -144,9 +184,18 @@ function newRun(): RunFile {
       filter: args.filter ?? null,
       every: args.every ? Number(args.every) : null,
       goals: parseGoals(),
+      ...(args['reasoning-effort'] ? { reasoningEffort: args['reasoning-effort'] } : {}),
+      ...(args['max-tokens'] ? { maxTokens: Number(args['max-tokens']) } : {}),
+      ...(args.temperature !== undefined ? { temperature: Number(args.temperature) } : {}),
+      ...(args.thinking ? { thinking: parseThinking(args.thinking) } : {}),
     },
     results: [],
   };
+}
+
+function parseThinking(value: string): ThinkingMode {
+  if (value !== 'on' && value !== 'off') throw new Error('--thinking must be on or off');
+  return value;
 }
 
 function parseGoals(): Goals {
@@ -161,6 +210,17 @@ function parseGoals(): Goals {
   return { formality, audience };
 }
 
+/** A fetch that sets the given fields on every chat completion request body. */
+function withBodyPatch(patch: Record<string, unknown>): typeof fetch {
+  return (input, init) => {
+    if (typeof init?.body === 'string' && String(input).endsWith('/chat/completions')) {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      return fetch(input, { ...init, body: JSON.stringify({ ...body, ...patch }) });
+    }
+    return fetch(input, init);
+  };
+}
+
 /** Keeps every Nth sample within each id group, so each category stays represented. */
 function inSlice(sample: Sample, every: number): boolean {
   const n = Number(sample.id.match(/(\d+)$/)?.[1] ?? 0);
@@ -173,7 +233,7 @@ function defaultOutPath(meta: RunFile['meta']): string {
   const g = meta.goals;
   const goals = g && (g.formality !== 'any' || g.audience !== 'any');
   const slug =
-    `${meta.preset}-${meta.model}${goals ? `-${g.formality}-${g.audience}` : ''}`.replace(
+    `${meta.preset}-${meta.model}${goals ? `-${g.formality}-${g.audience}` : ''}${meta.reasoningEffort ? `-reasoning-${meta.reasoningEffort}` : ''}${meta.maxTokens ? `-max${meta.maxTokens}` : ''}${meta.temperature !== undefined ? `-t${meta.temperature}` : ''}${meta.thinking ? `-thinking-${meta.thinking}` : ''}`.replace(
       /[^a-zA-Z0-9.-]+/g,
       '_',
     );
@@ -196,6 +256,7 @@ async function runSample(sample: Sample): Promise<SampleResult> {
       paragraphs: splitParagraphs(sample.text),
       settings,
       ...(tier ? { tier: tier as never } : {}),
+      ...(run.meta.thinking ? { thinking: run.meta.thinking } : {}),
     });
     tier = outcome.tier;
     return {
@@ -203,6 +264,7 @@ async function runSample(sample: Sample): Promise<SampleResult> {
       ms: Math.round(performance.now() - t0),
       tier: outcome.tier,
       dropped: outcome.dropped,
+      ...(outcome.thinkingFellBack ? { thinkingFellBack: true } : {}),
       outputTokens: outcome.usage?.outputTokens ?? null,
       suggestions: outcome.suggestions,
       items: outcome.items,
@@ -225,7 +287,11 @@ function printSummary({ meta, summary }: RunFile) {
   const pct = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(0)}%`);
   console.log(
     `\n${meta.preset} / ${meta.model} — prompt v${meta.promptVersion}, explanations ${meta.explanations ? 'on' : 'off'}` +
-      (meta.goals ? `, goals ${meta.goals.formality}/${meta.goals.audience}` : ''),
+      (meta.goals ? `, goals ${meta.goals.formality}/${meta.goals.audience}` : '') +
+      (meta.reasoningEffort ? `, reasoning_effort ${meta.reasoningEffort}` : '') +
+      (meta.maxTokens ? `, max_tokens ${meta.maxTokens}` : '') +
+      (meta.temperature !== undefined ? `, temperature ${meta.temperature}` : '') +
+      (meta.thinking ? `, thinking ${meta.thinking}` : ''),
   );
   console.log(
     `samples ${summary.samples}, errors ${summary.errors}, dropped items ${summary.dropped}`,
