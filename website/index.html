@@ -1,0 +1,283 @@
+<!doctype html>
+<!-- When Cadenza is in the Chrome Web Store, put its address in data-store-url. -->
+<html lang="en" data-store-url="">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cadenza, a quiet writing assistant</title>
+    <meta name="description" content="Writing suggestions in any text field, using the AI provider you choose with your own key, or a model on your own computer.">
+    <link rel="canonical" href="https://mateusrodrigues.github.io/cadenza/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Cadenza">
+    <meta property="og:title" content="Cadenza, a quiet writing assistant">
+    <meta property="og:description" content="Writing suggestions in any text field, using the AI provider you choose.">
+    <meta property="og:url" content="https://mateusrodrigues.github.io/cadenza/">
+    <meta property="og:image" content="https://mateusrodrigues.github.io/cadenza/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Cadenza, a quiet writing assistant. A sample sentence with four kinds of underline.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="theme-color" content="#edf1ef" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c100f" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="favicon.ico" sizes="48x48">
+    <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="preload" href="assets/fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="styles.css">
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top wrap">
+      <a class="brand" href="./">
+        <picture>
+          <source srcset="assets/logo/lockup-on-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="assets/logo/lockup-on-light.svg" alt="Cadenza" width="137" height="32">
+        </picture>
+      </a>
+      <nav aria-label="Main">
+        <a href="#your-text">Your text</a>
+        <a href="#settings">Settings</a>
+        <a href="https://github.com/mateusrodrigues/cadenza">Source</a>
+        <a class="button button-primary" href="#install" data-store-link>Install</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <h1>A quiet writing assistant for the fields you already type in</h1>
+        <div class="hero-side">
+          <p>Cadenza underlines what it would change in email, comments, chat and forms, using the AI provider you choose with your own key, or a model on your computer.</p>
+          <p class="actions">
+            <a class="button button-primary button-large" href="#install" data-store-link>Install Cadenza</a>
+            <a href="#your-text">See where your text goes</a>
+          </p>
+          <p class="fine">For Chrome and other Chromium browsers.</p>
+        </div>
+      </section>
+
+      <section class="demo wrap" aria-labelledby="try-title">
+        <div class="sheet" id="sheet">
+          <p class="sheet-head">
+            <strong>New message</strong>
+            <span class="muted">To priya@example.com</span>
+          </p>
+          <div class="field" id="field">
+            <div class="writing" id="writing">
+              <p>Hi Priya,</p>
+              <p>Thanks for sending the draft. I <span class="mark correctness" data-id="0">have went</span> through it twice, and <span class="mark correctness" data-id="1">their are</span> two things to fix before <span class="mark correctness" data-id="2">friday</span>.</p>
+              <p><span class="mark clarity" data-id="3">In order to</span> keep the launch on track, could you <span class="mark style" data-id="4">basically cut</span> the second section in half?</p>
+              <p><span class="mark tone" data-id="5">Obviously you missed my last note</span> about the pricing table.</p>
+              <p>Thanks,<br>Sam</p>
+            </div>
+            <button type="button" class="badge" id="badge" hidden></button>
+          </div>
+        </div>
+
+        <aside class="margin">
+          <h2 id="try-title">Try it on this sample</h2>
+          <p>Select an underlined phrase to see the change, then accept it or dismiss it. The round badge lists them all.</p>
+          <ul class="legend" id="legend">
+            <li data-category="correctness">
+              <svg class="line correctness" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4q3-4 6 0t6 0 6 0 6 0"/></svg>
+              <strong>Correctness</strong>
+              <span>Spelling, grammar and punctuation</span>
+            </li>
+            <li data-category="clarity">
+              <svg class="line clarity" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h24"/></svg>
+              <strong>Clarity</strong>
+              <span>Shorter, plainer ways to say it</span>
+            </li>
+            <li data-category="style">
+              <svg class="line style" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h24"/></svg>
+              <strong>Style</strong>
+              <span>Weak or repeated words</span>
+            </li>
+            <li data-category="tone">
+              <svg class="line tone" viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h24"/></svg>
+              <strong>Tone</strong>
+              <span>How a sentence may land</span>
+            </li>
+          </ul>
+          <p><button type="button" class="button" id="reset" hidden>Start over</button></p>
+          <p class="fine">The sample is part of this page. Nothing you do in it is sent anywhere.</p>
+          <p class="sr-only" id="announce" role="status"></p>
+        </aside>
+      </section>
+
+      <section class="route" id="your-text" aria-labelledby="route-title">
+        <div class="wrap">
+          <div class="section-head">
+            <h2 id="route-title">Your text takes one trip</h2>
+            <p>Cadenza has no server and no account. When you pause typing, it sends the paragraphs you changed to the one place you picked.</p>
+          </div>
+
+          <div class="trip">
+            <p class="from">The field you’re typing in</p>
+            <svg class="fork" viewBox="0 0 120 200" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 100h24C70 100 66 40 120 40"/>
+              <path d="M24 100c46 0 42 60 96 60"/>
+            </svg>
+            <ul class="to" aria-label="Goes to one of these">
+              <li>
+                <h3>A hosted AI provider</h3>
+                <p>Straight from your browser, with your own API key. You pay the provider at its rates, and its privacy terms cover what it does with the text.</p>
+              </li>
+              <li>
+                <h3>A model on your computer</h3>
+                <p>Or one on your local network. The text doesn’t leave your machine or network.</p>
+              </li>
+            </ul>
+          </div>
+
+          <p class="between"><del>A Cadenza server</del> <ins>Nothing in between</ins></p>
+
+          <div class="facts">
+            <div>
+              <h3>Never read</h3>
+              <ul>
+                <li>Password, payment card and one-time-code fields</li>
+                <li>Code editors</li>
+                <li>Fields a website marks as not to be checked</li>
+                <li>Kinds of field you turn off</li>
+                <li>Anything on a site you turn off</li>
+                <li>Google Docs, which Cadenza doesn’t support yet</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Kept in your browser</h3>
+              <ul>
+                <li>Your API keys, out of reach of the pages you visit, with an optional passphrase</li>
+                <li>Your settings, dictionary and ignored suggestions</li>
+                <li>A count of each day’s checks, for 31 days</li>
+                <li>Nothing synced to other devices</li>
+                <li>No analytics, tracking or ads</li>
+              </ul>
+              <p><a class="band-link" href="privacy.html">Read the privacy policy</a></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings wrap" id="settings" aria-labelledby="settings-title">
+        <div class="section-head">
+          <h2 id="settings-title">Make it fit how you write</h2>
+        </div>
+        <div class="shown">
+          <div>
+            <h3>Choose what it points out</h3>
+            <p>Pick American, British, Canadian or Australian English. Turn each kind of suggestion on or off, say how formal you want to sound and who is reading, and choose which kinds of field Cadenza checks.</p>
+            <p>Add names and terms to your dictionary. Use “Don’t suggest this again” for anything you want left alone, and undo it if you change your mind.</p>
+          </div>
+          <figure>
+            <picture>
+              <source srcset="assets/img/writing-narrow-dark.webp" media="(max-width: 600px) and (prefers-color-scheme: dark)" width="840" height="1456">
+              <source srcset="assets/img/writing-narrow-light.webp" media="(max-width: 600px)" width="840" height="1456">
+              <source srcset="assets/img/writing-dark.webp" media="(prefers-color-scheme: dark)" width="1456" height="1112">
+              <img src="assets/img/writing-light.webp" width="1456" height="1106" loading="lazy" alt="Cadenza’s Writing settings: English variant, the four categories, and which kinds of field to check.">
+            </picture>
+          </figure>
+        </div>
+        <div class="shown shown-popup">
+          <div>
+            <h3>One click from any page</h3>
+            <p>The toolbar button turns Cadenza off for the site you’re on, or everywhere. It switches between your saved providers and shows today’s checks and tokens. For hosted providers, you can set a daily limit.</p>
+            <h3>Or stay on the keyboard</h3>
+            <p><kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>.</kbd> opens the suggestion at the cursor, and pressing it again opens the whole list. <kbd>Esc</kbd> puts you back where you were typing. You can change the shortcut in Chrome.</p>
+          </div>
+          <figure>
+            <picture>
+              <source srcset="assets/img/popup-dark.webp" media="(prefers-color-scheme: dark)">
+              <img src="assets/img/popup-light.webp" width="680" height="872" loading="lazy" alt="Cadenza’s toolbar popup: on and off switches, the provider in use, and today’s checks and tokens.">
+            </picture>
+          </figure>
+        </div>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div class="wrap">
+          <div class="section-head">
+            <h2 id="install-title">Install Cadenza</h2>
+            <p data-when="source">Until Cadenza is in the Chrome Web Store, you build it from source. You need <a href="https://git-scm.com/">Git</a> and <a href="https://nodejs.org/">Node.js</a> 22.12 or later.</p>
+          </div>
+          <ol class="steps">
+            <li data-when="source">
+              <h3>Build the extension</h3>
+              <div class="code">
+                <pre><code id="commands">git clone https://github.com/mateusrodrigues/cadenza.git
+cd cadenza
+npm ci
+npm run build</code></pre>
+                <button type="button" class="button" id="copy" hidden>Copy</button>
+              </div>
+            </li>
+            <li data-when="source">
+              <h3>Load it into your browser</h3>
+              <p>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong>. Choose <strong>Load unpacked</strong> and select the <code>packages/extension/.output/chrome-mv3</code> folder.</p>
+            </li>
+            <li data-when="store" hidden>
+              <h3>Add it from the Chrome Web Store</h3>
+              <p><a class="button button-primary" href="#install" data-store-link>Add to Chrome</a></p>
+            </li>
+            <li>
+              <h3>Choose where your writing is checked</h3>
+              <p>A setup page opens. Paste an API key, or connect a model server running on this computer. Then type in any text field.</p>
+              <figure>
+                <picture>
+                  <source srcset="assets/img/onboarding-narrow-dark.webp" media="(max-width: 600px) and (prefers-color-scheme: dark)" width="780" height="1024">
+                  <source srcset="assets/img/onboarding-narrow-light.webp" media="(max-width: 600px)" width="780" height="1024">
+                  <source srcset="assets/img/onboarding-dark.webp" media="(prefers-color-scheme: dark)" width="1344" height="704">
+                  <img src="assets/img/onboarding-light.webp" width="1344" height="704" loading="lazy" alt="Cadenza’s setup page, offering two choices: use an API key, or use a model on this computer.">
+                </picture>
+              </figure>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="questions wrap" aria-labelledby="questions-title">
+        <h2 id="questions-title">Questions</h2>
+        <div>
+          <details>
+            <summary>What does it cost?</summary>
+            <p class="answer">Cadenza needs no account. With a hosted provider, you pay that provider for what you use, at its rates, and a daily limit can cap the number of checks. A model on your own computer has no provider bill.</p>
+          </details>
+          <details>
+            <summary>Which providers can I use?</summary>
+            <p class="answer">The settings list hosted providers and local model servers, and you can add a compatible endpoint of your own. Cadenza lists the models your provider offers, and a connection test shows how quickly one replies.</p>
+          </details>
+          <details>
+            <summary>Will it change my text on its own?</summary>
+            <p class="answer">No. A change is made only when you accept it.</p>
+          </details>
+          <details>
+            <summary>How good are the suggestions?</summary>
+            <p class="answer">That depends on the model you choose. A model on your computer keeps your text with you, but is slower without a fast graphics card.</p>
+          </details>
+          <details>
+            <summary>Does it work in Google Docs?</summary>
+            <p class="answer">Not yet. Cadenza stays off in Google Docs. It works in plain text boxes and in rich editors.</p>
+          </details>
+          <details>
+            <summary>Which languages does it check?</summary>
+            <p class="answer">Cadenza is made for English, in American, British, Canadian or Australian spelling.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="bottom wrap">
+      <picture>
+        <source srcset="assets/logo/lockup-on-dark.svg" media="(prefers-color-scheme: dark)">
+        <img src="assets/logo/lockup-on-light.svg" alt="Cadenza" width="103" height="24">
+      </picture>
+      <nav aria-label="Footer">
+        <a href="privacy.html">Privacy policy</a>
+        <a href="https://github.com/mateusrodrigues/cadenza">Source on GitHub</a>
+        <a href="https://github.com/mateusrodrigues/cadenza/issues">Report a problem</a>
+      </nav>
+    </footer>
+  </body>
+</html>

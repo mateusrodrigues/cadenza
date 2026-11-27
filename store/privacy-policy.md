@@ -1,6 +1,6 @@
 # Cadenza privacy policy
 
-_Effective [date of publishing]_
+_Effective November 26, 2026_
 
 Cadenza is a browser extension that suggests changes to text you write on the web. It has no
 server of its own. This policy explains what Cadenza reads, where it sends it, and what it
@@ -81,4 +81,4 @@ effective date.
 
 ## Contact
 
-Questions about this policy: [contact address]
+Questions about this policy: cadenza@mateus.tech

@@ -18,6 +18,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run check:naming
+      - name: Privacy page matches store/privacy-policy.md
+        run: node website/build-privacy.mjs && git diff --exit-code website/privacy.html
       - run: npm test
       - run: npm run build
 

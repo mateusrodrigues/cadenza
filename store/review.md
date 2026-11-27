@@ -70,7 +70,8 @@ The three certifications all apply:
       purpose.
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
-Privacy policy URL: [where `store/privacy-policy.md` is published]
+Privacy policy URL: https://mateusrodrigues.github.io/cadenza/privacy.html (`website/privacy.html`,
+generated from `store/privacy-policy.md`)
 
 ## Notes for the reviewer
 
@@ -88,6 +89,6 @@ The test rules run inside the extension and send nothing over the network.
 
 ## Before submitting
 
-- Publish the privacy policy and paste its URL above and in the store's privacy field.
-- Fill in the policy's effective date and contact address.
+- Merge the website to `main` so the privacy policy is published.
+- Paste the privacy policy URL above into the store's privacy field.
 - Answer the data-usage form from this file, and keep it in step with the policy.
