@@ -534,8 +534,9 @@ keyboards. The checklist is `docs/testing.md`; results and bugs are recorded the
   optional localhost).
 - Drafts (not yet submitted):
   - `store/listing.md`: name, summary, category and description.
-  - `store/privacy-policy.md`: the public policy, written from `docs/privacy.md`. It still
-    needs a home (a public URL), an effective date and a contact address.
+  - `store/privacy-policy.md`: the public policy, written from `docs/privacy.md`, effective
+    November 26, 2026. Published at https://mateusrodrigues.github.io/cadenza/privacy.html
+    (`website/privacy.html`, generated from it).
   - `store/review.md`: single purpose, a justification per permission, remote code, the
     data-usage answers, and test steps for the reviewer using the built-in test rules.
   - Icons, promo tiles and screenshots in `store/` come from the design kit and are final.
