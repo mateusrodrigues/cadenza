@@ -70,7 +70,7 @@ The three certifications all apply:
       purpose.
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
-Privacy policy URL: https://mateusrodrigues.github.io/cadenza/privacy.html (`website/privacy.html`,
+Privacy policy URL: https://cadenza.mateus.tech/privacy.html (`website/privacy.html`,
 generated from `store/privacy-policy.md`)
 
 ## Notes for the reviewer
