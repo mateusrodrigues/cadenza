@@ -74,20 +74,17 @@ Privacy policy URL: [where `store/privacy-policy.md` is published]
 
 ## Notes for the reviewer
 
-Paste into the "Test instructions" field, so a reviewer can try Cadenza without an API key:
+Paste into the "Test instructions" field (500 characters at most; this is 458), so a reviewer
+can try Cadenza without an API key:
 
-> Cadenza normally uses the user's own AI provider key or a model on their computer. To try
-> it without either:
->
-> 1. Close the setup page that opens on install, then open Cadenza's settings (right-click
->    the toolbar icon, then Options).
-> 2. The Provider tab opens with a new provider's form. Set Preset to "Test rules (no AI)",
->    then choose Save provider.
-> 3. On any page with a text box, type: Read teh book tomorow.
->    Cadenza underlines "teh" and "tomorow". Click an underline to see the suggestion, then
->    Accept to apply it.
->
-> The test rules run inside the extension and send nothing over the network.
+```text
+No API key needed: Cadenza has built-in test rules.
+1. Close the setup page that opens on install. Right-click the toolbar icon, then Options.
+2. On the Provider tab, set Preset to "Test rules (no AI)" and click Save provider.
+3. In any text box on a web page, type: Read teh book tomorow.
+"teh" and "tomorow" are underlined. Click one to see the suggestion, then Accept to apply it.
+The test rules run inside the extension and send nothing over the network.
+```
 
 ## Before submitting
 
