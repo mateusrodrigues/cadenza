@@ -535,7 +535,7 @@ keyboards. The checklist is `docs/testing.md`; results and bugs are recorded the
 - Drafts (not yet submitted):
   - `store/listing.md`: name, summary, category and description.
   - `store/privacy-policy.md`: the public policy, written from `docs/privacy.md`, effective
-    November 26, 2026. Published at https://mateusrodrigues.github.io/cadenza/privacy.html
+    November 26, 2026. Published at https://cadenza.mateus.tech/privacy.html
     (`website/privacy.html`, generated from it).
   - `store/review.md`: single purpose, a justification per permission, remote code, the
     data-usage answers, and test steps for the reviewer using the built-in test rules.

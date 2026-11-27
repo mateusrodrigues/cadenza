@@ -32,8 +32,10 @@ Then open <http://localhost:8000>.
 
 1. After any change to `store/privacy-policy.md`, update its effective date and run
    `node website/build-privacy.mjs`.
-2. The pages assume the address `https://mateusrodrigues.github.io/cadenza/`. For another
-   address, replace it in `index.html` (canonical and `og:` tags) and `build-privacy.mjs`.
+2. The pages assume the address `https://cadenza.mateus.tech/`, the custom domain set in
+   **Settings → Pages** (no `CNAME` file needed when publishing with Actions). For another
+   address, change it there and replace it in `index.html` (canonical and `og:` tags) and
+   `build-privacy.mjs`.
 3. When the extension is in the Chrome Web Store, put its address in `data-store-url` at the
    top of `index.html`. The install buttons and steps switch over.
 
@@ -44,7 +46,7 @@ when run by hand from the Actions tab. It needs **Settings → Pages → Source*
 **GitHub Actions**, once.
 
 The store's privacy policy address is
-`https://mateusrodrigues.github.io/cadenza/privacy.html`. CI fails if `privacy.html` is out of
+`https://cadenza.mateus.tech/privacy.html`. CI fails if `privacy.html` is out of
 step with `store/privacy-policy.md`.
 
 ## Keeping it true

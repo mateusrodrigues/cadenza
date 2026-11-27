@@ -81,7 +81,7 @@ writeFileSync(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Privacy policy | Cadenza</title>
     <meta name="description" content="What Cadenza reads, where it sends it, and what it keeps.">
-    <link rel="canonical" href="https://mateusrodrigues.github.io/cadenza/privacy.html">
+    <link rel="canonical" href="https://cadenza.mateus.tech/privacy.html">
     <link rel="icon" href="favicon.ico" sizes="48x48">
     <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
